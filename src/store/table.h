@@ -1,0 +1,7 @@
+class Table
+{};
+
+
+class Record
+{};
+
