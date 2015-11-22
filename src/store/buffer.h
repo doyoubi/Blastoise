@@ -20,6 +20,7 @@ struct Page
 
 struct PageDescNode
 {
+    Page * page;
     int fd = INVALID_FD;
     size_t pageNum = 0; // page number of file
     size_t pinCount = 0;
@@ -33,7 +34,7 @@ class PagePool
 {
 public:
     typedef long PageKey;
-    typedef int PageIndex;
+    typedef PageDescNode* NodePtr;
 
     PagePool(size_t pageSum);
     byte * getPageData(int fd, size_t pageNum);
@@ -43,14 +44,14 @@ public:
     void unpinPage(int fd, size_t pageNum);
 private:
     PageKey hash(int fd, size_t pageNum);
-    void nodeToHead(PageIndex i);
+    void nodeToHead(NodePtr n);
 
     std::vector<Page> pageBuffer_;
     std::vector<PageDescNode> descNodes_;  // circular linked list
-    std::unordered_map<PageKey, PageIndex> pageHash_;
+    std::unordered_map<PageKey, NodePtr> pageHash_;
 
-    PageIndex head_;
-    PageIndex tail_;
+    NodePtr head_;
+    NodePtr tail_;
     size_t pageSum_;
 };
 

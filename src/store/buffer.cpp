@@ -6,15 +6,16 @@ namespace blt
 PagePool::PagePool(size_t pageSum)
     : pageBuffer_(pageSum),
     descNodes_(pageSum),
-    head_(INVALID_INDEX),
-    tail_(INVALID_INDEX),
+    head_(&descNodes_.front()),
+    tail_(&descNodes_.back()),
     pageSum_(pageSum)
 {
     DEBUG_CHECK(pageSum > 0);
     for(size_t i = 0; i != pageSize; i++)
     {
-        descNodes_[i].next = i + 1;
-        descNodes_[(i+1) % pageSize].last = i;
+        descNodes_[i].next = &descNodes_[i+1];
+        descNodes_[(i+1) % pageSize].last = &descNodes_[i];
+        descNodes_[i].page = &pageBuffer_[i];
     }
 }
 
@@ -22,12 +23,9 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
 {
     PageKey k = this->hash(fd, pageNum);
     if(pageHash_.count(k))
-    {
-        PageIndex i = pageHash_.at(k);
-        return pageBuffer_[i].data;
-    }
+        PageIndex i = pageHash_.at(k)->page.data;
 
-    PageDescNode & desc = descNodes_[tail_];
+    PageDescNode & desc = *tail_;
     if(desc.pinCount > 0)
         return nullptr;
     this->nodeToHead(tail_);
@@ -37,51 +35,47 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
     desc.pageNum = pageNum;
     desc.pinCount = 0;
     desc.dirty = false;
-    return pageBuffer_[head_].data;
+    return head_->page.data;
 }
 
 void PagePool::pinPage(int fd, size_t pageNum)
 {
     PageKey k = hash(fd, pageNum);
     DEBUG_CHECK(pageHash_.count(k));
-    Page & page = pageHash_.at(k);
-    page.pinCount++;
+    auto desc = pageHash_.at(k);
+    ++desc->pincout;
 }
 
 void PagePool::unpinPage(int fd, size_t pageNum)
 {
     PageKey k = hash(fd, pageNum);
     DEBUG_CHECK(pageHash_.count(k));
-    Page & page = pageHash_.at(k);
-    DEBUG_CHECK(page.pinCount > 0);
-    page.pinCount--;
+    auto desc = pageHash_.at(k);
+    DEBUG_CHECK(desc->pinCount > 0);
+    --desc->pinCount;
 }
 
 void flushPage(int fd, size_t pageNum)
 {
 }
 
-void PagePool::nodeToHead(PageIndex i)
+void PagePool::nodeToHead(NodePtr n)
 {
-    if(i == head_) return;
-    if(i == tail_)
+    if(n == head_) return;
+    if(n == tail_)
     {
-        tail_ = tail_.last;
-        head_ = i;
+        head_ = n;
+        tail_ = tail_->last;
     }
     // remove
-    auto last = [](size_t i) { return (i - 1 + pageSum_) % pageSum_; }
-    auto next = [](size_t i) { return (i + 1) % pageSum_; }
-    PageIndex currLast = last(i);
-    PageIndex currNext = next(i);
-    descNodes_[currLast].next = currNext;
-    descNodes_[currNext].last = currLast;
+    n->last->next = n->next;
+    n->next->last = n->last;
     // add to head
-    descNodes_[i].last = tail_;
-    descNodes_[i].next = head_;
-    descNodes_[tail_].next = i;
-    descNodes_[head_].last = i;
-    head_ = i;
+    n->last = tail_;
+    n->next = head_;
+    tail_->next = n;
+    head_->last = n;
+    head_ = n;
 }
 
 PagePool::PageKey PagePool::hash(int fd, size_t pageNum)
