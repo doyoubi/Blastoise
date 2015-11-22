@@ -57,6 +57,10 @@ void PagePool::unpinPage(int fd, size_t pageNum)
     page.pinCount--;
 }
 
+void flushPage(int fd, size_t pageNum)
+{
+}
+
 void PagePool::nodeToHead(PageIndex i)
 {
     if(i == head_) return;
