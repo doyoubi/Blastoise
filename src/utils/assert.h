@@ -24,10 +24,10 @@ void DebugCheck(
         << errorMsg << endl;
 }
 
-#define DEBUGCHECK(checkedExpression) DebugCheck(checkedExpression, __FILE__, __LINE__, "")
-#define DEBUGCHECK_WITH_MSG(checkedExpression, errorMsg) DebugCheck(checkedExpression, __FILE__, __LINE__, errorMsg)
-#define CHECKNULL(ptr) DEBUGCHECK(ptr != nullptr, "null pointer")
-#define ERRORMSG(errorMsg) DEBUGCHECK(false, errorMsg)
+#define DEBUG_CHECK(checkedExpression) DebugCheck(checkedExpression, __FILE__, __LINE__, "")
+#define DEBUG_CHECK_WITH_MSG(checkedExpression, errorMsg) DebugCheck(checkedExpression, __FILE__, __LINE__, errorMsg)
+#define CHECK_NULL(ptr) DEBUGCHECK(ptr != nullptr, "null pointer")
+#define ERROR_MSG(errorMsg) DEBUGCHECK(false, errorMsg)
 
 
 inline void Check(bool checkedExpression, string errorMsg)

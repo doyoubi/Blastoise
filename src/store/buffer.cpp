@@ -1,4 +1,5 @@
 #include "buffer.h"
+#include "utils/assert.h"
 
 namespace blt
 {
@@ -11,10 +12,10 @@ PagePool::PagePool(size_t pageSum)
     pageSum_(pageSum)
 {
     DEBUG_CHECK(pageSum > 0);
-    for(size_t i = 0; i != pageSize; i++)
+    for(size_t i = 0; i != pageSum; i++)
     {
         descNodes_[i].next = &descNodes_[i+1];
-        descNodes_[(i+1) % pageSize].last = &descNodes_[i];
+        descNodes_[(i+1) % pageSum].last = &descNodes_[i];
         descNodes_[i].page = &pageBuffer_[i];
     }
 }
@@ -23,7 +24,7 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
 {
     PageKey k = this->hash(fd, pageNum);
     if(pageHash_.count(k))
-        PageIndex i = pageHash_.at(k)->page.data;
+        return pageHash_.at(k)->page->data;
 
     PageDescNode & desc = *tail_;
     if(desc.pinCount > 0)
@@ -35,7 +36,7 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
     desc.pageNum = pageNum;
     desc.pinCount = 0;
     desc.dirty = false;
-    return head_->page.data;
+    return head_->page->data;
 }
 
 void PagePool::pinPage(int fd, size_t pageNum)
@@ -43,7 +44,7 @@ void PagePool::pinPage(int fd, size_t pageNum)
     PageKey k = hash(fd, pageNum);
     DEBUG_CHECK(pageHash_.count(k));
     auto desc = pageHash_.at(k);
-    ++desc->pincout;
+    ++desc->pinCount;
 }
 
 void PagePool::unpinPage(int fd, size_t pageNum)
@@ -55,7 +56,7 @@ void PagePool::unpinPage(int fd, size_t pageNum)
     --desc->pinCount;
 }
 
-void flushPage(int fd, size_t pageNum)
+void PagePool::flushPage(int fd, size_t pageNum)
 {
 }
 
@@ -80,8 +81,9 @@ void PagePool::nodeToHead(NodePtr n)
 
 PagePool::PageKey PagePool::hash(int fd, size_t pageNum)
 {
-    STATIC_ASSERT(sizeof(PagePool::PageKey) == 2 * sizeof(int));
-    return (fd << (sizeof(fd) * 8)) + pageNum;
+    STATIC_ASSERT(sizeof(PagePool::PageKey) == 2 * sizeof(int),
+        "PageKey should be 2 times larger than int");
+    return (long(fd) << (sizeof(fd) * 8)) + pageNum;
 }
 
 }

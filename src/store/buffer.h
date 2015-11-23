@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <cstddef>  // #use size_t in gcc4.6
 
 
 namespace blt
@@ -21,12 +22,22 @@ struct Page
 struct PageDescNode
 {
     Page * page;
-    int fd = INVALID_FD;
-    size_t pageNum = 0; // page number of file
-    size_t pinCount = 0;
-    bool dirty = false;
-    size_t last = 0;
-    size_t next = 0;
+    int fd;
+    size_t pageNum; // page number of file
+    size_t pinCount;
+    bool dirty;
+    PageDescNode * last;
+    PageDescNode * next;
+
+    PageDescNode()
+        : page(nullptr),
+        fd(INVALID_FD),
+        pageNum(0),
+        pinCount(0),
+        dirty(false),
+        last(nullptr),
+        next(nullptr)
+    {}
 };
 
 

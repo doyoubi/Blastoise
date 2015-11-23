@@ -1,5 +1,16 @@
 solution "Blastoise"
     configurations { "Debug", "Release" }
+    location "build"
+    includedirs "src"
+
+    project "test"
+        kind "ConsoleApp"
+        language "C++"
+        files { "test/**.h", "test/**.cpp", "src/**.cpp" }
+        targetdir "build/test"
+        targetname "test_program"
+        buildoptions { "-std=c++0x" }
+        linkoptions { "-lpthread", "-lgtest", "-lgtest_main" }
     
     project "BltServer"
         kind "ConsoleApp"
