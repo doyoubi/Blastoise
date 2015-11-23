@@ -60,7 +60,7 @@ void PagePool::flushPage(int fd, size_t pageNum)
 {
 }
 
-void PagePool::nodeToHead(NodePtr n)
+void PagePool::nodeToHead(PageDescNode * n)
 {
     if(n == head_) return;
     if(n == tail_)

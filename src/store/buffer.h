@@ -6,7 +6,6 @@
 
 #include <vector>
 #include <unordered_map>
-#include <cstddef>  // #use size_t in gcc4.6
 
 
 namespace blt
@@ -45,7 +44,6 @@ class PagePool
 {
 public:
     typedef long PageKey;
-    typedef PageDescNode* NodePtr;
 
     PagePool(size_t pageSum);
     byte * getPageData(int fd, size_t pageNum);
@@ -55,14 +53,14 @@ public:
     void unpinPage(int fd, size_t pageNum);
 private:
     PageKey hash(int fd, size_t pageNum);
-    void nodeToHead(NodePtr n);
+    void nodeToHead(PageDescNode * n);
 
     std::vector<Page> pageBuffer_;
     std::vector<PageDescNode> descNodes_;  // circular linked list
-    std::unordered_map<PageKey, NodePtr> pageHash_;
+    std::unordered_map<PageKey, PageDescNode*> pageHash_;
 
-    NodePtr head_;
-    NodePtr tail_;
+    PageDescNode * head_;
+    PageDescNode * tail_;
     size_t pageSum_;
 };
 
