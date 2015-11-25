@@ -1,3 +1,4 @@
+#include <cstring>
 #include <gtest/gtest.h>
 #include "../mock.h"
 #define private public
@@ -65,4 +66,23 @@ TEST(PageFuncTest, FuncCalledTest)
     pool.getPageData(1, 3);
     ASSERT_TRUE(initFunc.wasCalled());
     ASSERT_TRUE(flushFunc.wasCalled());
+}
+
+TEST(SwapOutPageTest, RestorePageTest)
+{
+    char dataInFile[] = "1234567";
+    char newData[] = "7654321";
+    auto initFunc = [dataInFile](int, size_t, byte * data) -> void {
+        std::strcpy(data, dataInFile);
+    };
+    auto flushFunc = [dataInFile](int, size_t, byte * data) -> void {
+        std::strcpy((char*)(dataInFile), data);
+    };
+    PagePool pool(1, initFunc, flushFunc);
+    byte * data = pool.getPageData(1, 1);
+    pool.markDirty(1, 1);
+    ASSERT_STREQ(data, dataInFile);
+    std::strcpy(data, newData);
+    pool.getPageData(1, 2);
+    ASSERT_STREQ(newData, dataInFile);
 }
