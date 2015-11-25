@@ -24,19 +24,35 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
 {
     PageKey k = this->hash(fd, pageNum);
     if(pageHash_.count(k))
-        return pageHash_.at(k)->page->data;
+    {
+        this->nodeToHead(pageHash_.at(k));
+        return head_->page->data;
+    }
 
     PageDescNode & desc = *tail_;
     if(desc.pinCount > 0)
         return nullptr;
-    this->nodeToHead(tail_);
     if(desc.dirty)
         this->flushPage(desc.fd, desc.pageNum);
+
+    PageKey old_key = this->hash(desc.fd, desc.pageNum);
+    if(pageHash_.count(old_key))
+        this->removeHash(old_key);
+
+    this->addHash(k, tail_);
+    this->nodeToHead(tail_);
     desc.fd = fd;
     desc.pageNum = pageNum;
     desc.pinCount = 0;
     desc.dirty = false;
     return head_->page->data;
+}
+
+void PagePool::markDirty(int fd, size_t pageNum)
+{
+    PageKey k = this->hash(fd, pageNum);
+    DEBUG_CHECK(pageHash_.count(k));
+    pageHash_.at(k)->dirty = true;
 }
 
 void PagePool::pinPage(int fd, size_t pageNum)
@@ -84,6 +100,18 @@ PagePool::PageKey PagePool::hash(int fd, size_t pageNum)
     STATIC_ASSERT(sizeof(PagePool::PageKey) == 2 * sizeof(int),
         "PageKey should be 2 times larger than int");
     return (long(fd) << (sizeof(fd) * 8)) + pageNum;
+}
+
+void PagePool::removeHash(PageKey k)
+{
+    DEBUG_CHECK(pageHash_.count(k));
+    pageHash_.erase(k);
+}
+
+void PagePool::addHash(PageKey k, PageDescNode * n)
+{
+    DEBUG_CHECK(pageHash_.count(k) == 0);
+    pageHash_.insert({k, n});
 }
 
 }

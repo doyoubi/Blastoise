@@ -48,11 +48,14 @@ public:
     PagePool(size_t pageSum);
     byte * getPageData(int fd, size_t pageNum);
     void flushPage(int fd, size_t pageNum);
+    void markDirty(int fd, size_t pageNum);
 
     void pinPage(int fd, size_t pageNum);
     void unpinPage(int fd, size_t pageNum);
 private:
     PageKey hash(int fd, size_t pageNum);
+    void removeHash(PageKey k);
+    void addHash(PageKey k, PageDescNode * n);
     void nodeToHead(PageDescNode * n);
 
     std::vector<Page> pageBuffer_;
