@@ -4,12 +4,14 @@
 namespace blt
 {
 
-PagePool::PagePool(size_t pageSum)
+PagePool::PagePool(size_t pageSum, InitPageFunc initFunc, FlushPageFunc flushFunc)
     : pageBuffer_(pageSum),
     descNodes_(pageSum),
     head_(&descNodes_.front()),
     tail_(&descNodes_.back()),
-    pageSum_(pageSum)
+    pageSum_(pageSum),
+    initPageFunc_(initFunc),
+    flushPageFunc_(flushFunc)
 {
     DEBUG_CHECK(pageSum > 0);
     for(size_t i = 0; i != pageSum; i++)
@@ -33,7 +35,7 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
     if(desc.pinCount > 0)
         return nullptr;
     if(desc.dirty)
-        this->flushPage(desc.fd, desc.pageNum);
+        this->flushPageFunc_(desc.fd, desc.pageNum, desc.page->data);
 
     PageKey old_key = this->hash(desc.fd, desc.pageNum);
     if(pageHash_.count(old_key))
@@ -45,6 +47,7 @@ byte * PagePool::getPageData(int fd, size_t pageNum)
     desc.pageNum = pageNum;
     desc.pinCount = 0;
     desc.dirty = false;
+    this->initPageFunc_(fd, pageNum, desc.page->data);
     return head_->page->data;
 }
 
@@ -70,10 +73,6 @@ void PagePool::unpinPage(int fd, size_t pageNum)
     auto desc = pageHash_.at(k);
     DEBUG_CHECK(desc->pinCount > 0);
     --desc->pinCount;
-}
-
-void PagePool::flushPage(int fd, size_t pageNum)
-{
 }
 
 void PagePool::nodeToHead(PageDescNode * n)

@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <functional>
 
 
 namespace blt
@@ -44,10 +45,11 @@ class PagePool
 {
 public:
     typedef long PageKey;
+    typedef std::function<void(int fd, size_t pageNum, byte * data)> InitPageFunc;
+    typedef std::function<void(int fd, size_t pageNum, byte * data)> FlushPageFunc;
 
-    PagePool(size_t pageSum);
+    PagePool(size_t pageSum, InitPageFunc initFunc, FlushPageFunc flushFunc);
     byte * getPageData(int fd, size_t pageNum);
-    void flushPage(int fd, size_t pageNum);
     void markDirty(int fd, size_t pageNum);
 
     void pinPage(int fd, size_t pageNum);
@@ -65,6 +67,8 @@ private:
     PageDescNode * head_;
     PageDescNode * tail_;
     size_t pageSum_;
+    InitPageFunc flushPageFunc_;
+    FlushPageFunc initPageFunc_;
 };
 
 }
