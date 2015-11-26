@@ -16,8 +16,9 @@ PagePool::PagePool(size_t pageSum, InitPageFunc initFunc, FlushPageFunc flushFun
     DEBUG_CHECK(pageSum > 0);
     for(size_t i = 0; i != pageSum; i++)
     {
-        descNodes_[i].next = &descNodes_[i+1];
-        descNodes_[(i+1) % pageSum].last = &descNodes_[i];
+        size_t nextIndex = (i+1) % pageSum;
+        descNodes_[i].next = &descNodes_[nextIndex];
+        descNodes_[nextIndex].last = &descNodes_[i];
         descNodes_[i].page = &pageBuffer_[i];
     }
 }

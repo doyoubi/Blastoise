@@ -75,8 +75,8 @@ TEST(SwapOutPageTest, RestorePageTest)
     auto initFunc = [dataInFile](int, size_t, byte * data) -> void {
         std::strcpy(data, dataInFile);
     };
-    auto flushFunc = [dataInFile](int, size_t, byte * data) -> void {
-        std::strcpy((char*)(dataInFile), data);
+    auto flushFunc = [&dataInFile](int, size_t, byte * data) -> void {
+        std::strcpy(dataInFile, data);
     };
     PagePool pool(1, initFunc, flushFunc);
     byte * data = pool.getPageData(1, 1);
