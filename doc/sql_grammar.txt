@@ -1,0 +1,63 @@
+# select
+select_statement ::= SELECT select_expr
+                     FROM relation_list
+                     [WHERE condition]
+                     [
+                        GROUP BY attribute
+                        [HAVING condition]
+                     ]
+                     [ORDER BY attribute]
+
+select_expr ::= * | attribute_list
+attribute_list ::= attribute [, attribute ...]
+attribute ::= attribute_name | table_name.attribute_name | aggregate_function(attribute_name)
+
+relation_list ::= relation [, relation ...]
+relation ::= table_name | select_statement
+
+condition ::= or_expr
+or_expr ::= and_expr [OR and_expr ...]
+and_expr ::= cond_primitive [AND cond_primitive ...]
+cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr
+
+cmp_expr ::= cmp_operant cmp_operator cmp_operant
+cmp_operant ::= arith_expr
+cmp_operator ::= < | > | <= | >= | = | != | is | is not
+
+arith_expr ::= first_expr
+first_expr ::= second_expr [first_operator second_expr ...]
+first_operator ::= + | -
+
+second_expr ::= arith_primitive [second_operator arith_primitive ...]
+second_operator ::= * | / | %
+
+arith_primitive ::= - arith_primitive | + arith_primitive | ( arith_primitive ) | arith_operant
+arith_operant ::= attribute | literal
+literal ::= int | float | string | null
+
+
+# insert
+insert_statement ::= INSERT table_name
+                     VALUES ( attribute_name [, attribute_name ...] )
+
+# update
+update_statement ::= UPDATE table_name
+                     SET assignment_list
+                     WHERE condition
+assignment_list ::= assignment [, assignment ...]
+assignment ::= attribute_name = literal
+
+# delete
+delete_statement ::= DELETE FROM table_name
+                     WHERE condition
+
+# create table
+create_table_statement ::= CREATE TABLE table_name (
+    attribute_declaration_list
+)
+attribute_declaration_list ::= attribute_declaration [, attribute_declaration]
+attribute_declaration ::= attribute_name attribute_type [NOT NULL]
+attribute_type ::= int | char
+
+# drop table
+drop_table_statement ::= DROP TABLE table_name;
