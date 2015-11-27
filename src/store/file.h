@@ -25,6 +25,22 @@ private:
 };
 
 
+struct PageHeader
+{
+    size_t slotSum;
+    int firstFreePage;
+};
+
+
+class Bitmap
+{
+public:
+private:
+    size_t size_;
+    byte * data_;
+};
+
+
 class FileBuffer
 {
 public:
@@ -36,9 +52,28 @@ private:
 };
 
 
+struct FileHeader
+{
+    int firstFreePage;
+    size_t pageSum;
+};
+
+
+class Record
+{
+public:
+private:
+    byte * data_;
+};
+
+
 class File
 {
 public:
+    File(const char * filename);
+private:
+    FileHeader header_;
+    int fd_;
 };
 
 
