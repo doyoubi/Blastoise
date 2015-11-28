@@ -9,6 +9,7 @@ enum class CompileErrorType
     Lexer_InvalidEscapeChar,
     Lexer_UnexpectedChar,
     Lexer_InCompleteString,
+    Lexer_InvalidFloat
 };
 
 }

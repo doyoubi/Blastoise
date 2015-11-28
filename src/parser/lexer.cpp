@@ -21,25 +21,25 @@ void toLower(string & str)
 TokenType strToTokenType(const string & str)
 {
     return str == "select" ? TokenType::Select :
-        str == "from" ? : TokenType::From :
-        str == "where" ? : TokenType::Where :
-        str == "order" ? : TokenType::Order :
-        str == "by" ? : TokenType::By :
-        str == "group" ? : TokenType::Group :
-        str == "having" ? : TokenType::Having :
-        str == "insert" ? : TokenType::Insert :
-        str == "values" ? : TokenType::Values :
-        str == "update" ? : TokenType::Update :
-        str == "set" ? : TokenType::Set :
-        str == "delete" ? : TokenType::Delete :
-        str == "create" ? : TokenType::CREATE :
-        str == "table" ? : TokenType::TABLE :
-        str == "drop" ? : TokenType::DROP :
-        str == "null" ? : TokenType::Null :
-        str == "and" ? : TokenType::And :
-        str == "or" ? : TokenType::Or :
-        str == "not" ? : TokenType::Not :
-        str == "is" ? : TokenType::Is :
+        str == "from" ? TokenType::From :
+        str == "where" ? TokenType::Where :
+        str == "order" ? TokenType::Order :
+        str == "by" ? TokenType::By :
+        str == "group" ? TokenType::Group :
+        str == "having" ? TokenType::Having :
+        str == "insert" ? TokenType::Insert :
+        str == "values" ? TokenType::Values :
+        str == "update" ? TokenType::Update :
+        str == "set" ? TokenType::Set :
+        str == "delete" ? TokenType::Delete :
+        str == "create" ? TokenType::CREATE :
+        str == "table" ? TokenType::TABLE :
+        str == "drop" ? TokenType::DROP :
+        str == "null" ? TokenType::Null :
+        str == "and" ? TokenType::And :
+        str == "or" ? TokenType::Or :
+        str == "not" ? TokenType::Not :
+        str == "is" ? TokenType::Is :
         TokenType::UnKnown;
 }
 
@@ -100,7 +100,7 @@ bool TokenLine::checkUnEscapeString(const string & s, Token::Ptr & token)
 
 TokenType convertSingleCharToken(char c)
 {
-    return c == '(' ? : TokenType::OpenBracket :
+    return c == '(' ? TokenType::OpenBracket :
         c == ')' ? TokenType::CloseBracket :
         c == ',' ? TokenType::Comma :
         c == '+' ? TokenType::Add :
@@ -125,8 +125,9 @@ TokenType convertTwoCharToken(char curr, char next)
 
 bool isIgnoreChar(char c)
 {
+    using namespace std;
     char ignored[] = {'\n', '\0', '\t', '\r', ' '};
-    return end(ignored) != std::find(begin(ignored), end(ignored), c);
+    return end(ignored) != find(begin(ignored), end(ignored), c);
 }
 
 TokenLine::Ptr TokenLine::parse(const string & codeString)
@@ -144,14 +145,14 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
     };
 
     State state = State::Begin;
-    auto head = std::cbegin(codeString);
-    auto tail = std::cend(codeString);
+    auto head = codeString.cbegin();
+    auto tail = codeString.cend();
     auto headUnusedTag = tail;
     auto charIt = std::begin(codeString);
 
     auto addToken = [&](const string value, TokenType type){
         auto tokenHead = head == headUnusedTag ? charIt : head;
-        auto token = std::make_shared<CodeToken>(
+        auto token = std::make_shared<Token>(
             distance(std::begin(codeString), tokenHead) + 1, value, type
         );
         if(type == TokenType::Identifier)
@@ -160,9 +161,9 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
             if(t != TokenType::UnKnown)
                 token->type = t;
         }
-        else if (type == CodeTokenType::StringLiteral)
+        else if (type == TokenType::StringLiteral)
         {
-            bool success = line->UnEscapeString(value, token);
+            bool success = line->checkUnEscapeString(value, token);
             if (!success)
             {
             } // treat it as an valid string, but without escape, raise an error and go on.
@@ -172,8 +173,8 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
 
     auto addError = [&](CompileErrorType errorType, const string value, const string errorMsg){
         auto tokenHead = head == headUnusedTag ? charIt : head;
-        auto token = std::make_shared<CodeToken>(
-            distance(std::begin(codeString), tokenHead) + 1, value, CodeTokenType::UnKnown
+        auto token = std::make_shared<Token>(
+            distance(std::begin(codeString), tokenHead) + 1, value, TokenType::UnKnown
             );
         CompileError error = {
             errorType, token, errorMsg
@@ -185,13 +186,13 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
     {
         char c = charIt == tail ? '\0' : *charIt;
         char nextChar = (charIt != tail && std::next(charIt) != tail) ? *std::next(charIt) : '\0';
-        switch()
+        switch(state)
         {
         case State::Begin:
             if(isIgnoreChar(c))
                 break;
             else if(TokenType::UnKnown != convertTwoCharToken(c, nextChar))
-                addToken({c, nextChar}, convertTwoCharToken(c, nextChar))
+                addToken({c, nextChar}, convertTwoCharToken(c, nextChar));
             else if(TokenType::UnKnown != convertSingleCharToken(c))
                 addToken(string(1, c), convertSingleCharToken(c));
             else if(c == '"')
@@ -201,7 +202,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
             }
             else if('0' <= c && c <= '9')
             {
-                state = State:InInteger;
+                state = State::InInteger;
                 head = charIt;
             }
             else if ('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_')
@@ -241,7 +242,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
             }
             else if (c == '"')
             {
-                addToken(string(std::next(head), charIt), CodeTokenType::StringLiteral);
+                addToken(string(std::next(head), charIt), TokenType::StringLiteral);
                 head = headUnusedTag;
                 state = State::Begin;
             }
@@ -268,7 +269,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
                 else
                 {
                     // ignore this '.' and treat this token as Float, but raise error
-                    addToken(string(head, charIt), CodeTokenType::FloatLiteral);
+                    addToken(string(head, charIt), TokenType::FloatLiteral);
                     addError(CompileErrorType::Lexer_InvalidFloat, string(head, std::next(charIt)),
                         "'.' should be followed by digit");
                     state = State::Begin;
@@ -277,7 +278,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
             }
             else
             {
-                addToken(string(head, charIt), CodeTokenType::IntegerLiteral);
+                addToken(string(head, charIt), TokenType::IntegerLiteral);
                 state = State::Begin;
                 head = headUnusedTag;
                 --charIt;
@@ -290,7 +291,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
                 {} // go on
             else
             {
-                addToken(string(head, charIt), CodeTokenType::FloatLiteral);
+                addToken(string(head, charIt), TokenType::FloatLiteral);
                 state = State::Begin;
                 head = headUnusedTag;
                 --charIt;
