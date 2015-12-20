@@ -1,3 +1,5 @@
+# you can specify test case
+# like: ./test.sh "LexerTest*"
 set -e
 
 . ./build_settings.sh
@@ -14,5 +16,9 @@ if [ ! -d build ]; then
 fi
 
 cd "${PROJ_DIR}/build"
-make test && ./test/test_program
+if [ -z "${1}" ]; then
+    make test && ./test/test_program
+else
+    make test && ./test/test_program --gtest_filter=${1}
+fi
 
