@@ -31,9 +31,9 @@ enum class TokenType
     Set,
     Delete,
 
-    CREATE,
-    TABLE,
-    DROP,
+    Create,
+    Table,
+    Drop,
 
     Null,         // null
     OpenBracket,  // (

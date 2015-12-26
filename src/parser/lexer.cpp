@@ -8,14 +8,16 @@ namespace blt
 
 using std::string;
 
-void toLower(string & str)
+string toLower(const string & str)
 {
     auto isUpperLetter = [](char c){
         return 'A' <= c && c <= 'Z';
     };
-    for(char & c : str)
+    string ret(str);
+    for(char & c : ret)
         if(isUpperLetter(c))
             c = c + ('a' - 'A');
+    return ret;
 }
 
 TokenType strToTokenType(const string & str)
@@ -32,9 +34,9 @@ TokenType strToTokenType(const string & str)
         str == "update" ? TokenType::Update :
         str == "set" ? TokenType::Set :
         str == "delete" ? TokenType::Delete :
-        str == "create" ? TokenType::CREATE :
-        str == "table" ? TokenType::TABLE :
-        str == "drop" ? TokenType::DROP :
+        str == "create" ? TokenType::Create :
+        str == "table" ? TokenType::Table :
+        str == "drop" ? TokenType::Drop :
         str == "null" ? TokenType::Null :
         str == "and" ? TokenType::And :
         str == "or" ? TokenType::Or :
@@ -145,9 +147,9 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
     };
 
     State state = State::Begin;
-    auto head = codeString.cbegin();
     auto tail = codeString.cend();
     auto headUnusedTag = tail;
+    auto head = headUnusedTag;
     auto charIt = std::begin(codeString);
 
     auto addToken = [&](const string value, TokenType type){
@@ -157,7 +159,7 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
         );
         if(type == TokenType::Identifier)
         {
-            TokenType t = strToTokenType(value);
+            TokenType t = strToTokenType(toLower(value));
             if(t != TokenType::UnKnown)
                 token->type = t;
         }
@@ -192,7 +194,10 @@ TokenLine::Ptr TokenLine::parse(const string & codeString)
             if(isIgnoreChar(c))
                 break;
             else if(TokenType::UnKnown != convertTwoCharToken(c, nextChar))
+            {
                 addToken({c, nextChar}, convertTwoCharToken(c, nextChar));
+                ++charIt;
+            }
             else if(TokenType::UnKnown != convertSingleCharToken(c))
                 addToken(string(1, c), convertSingleCharToken(c));
             else if(c == '"')
