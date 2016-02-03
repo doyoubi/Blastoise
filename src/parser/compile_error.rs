@@ -1,4 +1,6 @@
 use std::rc::Rc;
+use std::vec::Vec;
+
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum CompileErrorType {
@@ -6,6 +8,12 @@ pub enum CompileErrorType {
     LexerUnexpectedChar,
     LexerInCompleteString,
     LexerInvalidFloat,
+
+    ParserNoMoreToken,
+    ParserUnExpectedTokenType,
+    ParserTableAttrNotExist,
+    ParserNoTable,
+    ParserLackOfSpecifyingTable,
 }
 
 pub struct CompileError {
@@ -13,3 +21,5 @@ pub struct CompileError {
     pub token : Rc<::parser::lexer::Token>,
     pub error_msg : String,
 }
+
+pub type ErrorList = Vec<Rc<CompileError>>;

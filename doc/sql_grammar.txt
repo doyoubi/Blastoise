@@ -3,14 +3,15 @@ select_statement ::= SELECT select_expr
                      FROM relation_list
                      [WHERE condition]
                      [
-                        GROUP BY attribute
+                        GROUP BY table_attribute
                         [HAVING condition]
                      ]
                      [ORDER BY attribute]
 
 select_expr ::= * | attribute_list
 attribute_list ::= attribute [, attribute ...]
-attribute ::= attribute_name | table_name.attribute_name | aggregate_function(attribute_name)
+attribute ::= table_attribute | aggregate_function(attribute_name)
+table_attribute ::= attribute_name | table_name.attribute_name
 
 relation_list ::= relation [, relation ...]
 relation ::= table_name | select_statement
@@ -18,7 +19,7 @@ relation ::= table_name | select_statement
 condition ::= or_expr
 or_expr ::= and_expr [OR and_expr ...]
 and_expr ::= cond_primitive [AND cond_primitive ...]
-cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr
+cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr | true | false
 
 cmp_expr ::= cmp_operant cmp_operator cmp_operant
 cmp_operant ::= arith_expr
@@ -31,14 +32,14 @@ first_operator ::= + | -
 second_expr ::= arith_primitive [second_operator arith_primitive ...]
 second_operator ::= * | / | %
 
-arith_primitive ::= - arith_primitive | + arith_primitive | ( arith_primitive ) | arith_operant
+arith_primitive ::= - arith_expr | + arith_expr | ( arith_expr ) | arith_operant
 arith_operant ::= attribute | literal
 literal ::= int | float | string | null
 
 
 # insert
 insert_statement ::= INSERT table_name
-                     VALUES ( attribute_name [, attribute_name ...] )
+                     VALUES ( literal [, literal ...] )
 
 # update
 update_statement ::= UPDATE table_name

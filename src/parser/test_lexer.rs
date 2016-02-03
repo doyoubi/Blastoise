@@ -27,7 +27,7 @@ impl TokenTestHelper {
     }
 
     #[allow(dead_code)]
-    fn get_errors(&self) -> &::parser::lexer::ErrorList {
+    fn get_errors(&self) -> &::parser::compile_error::ErrorList {
         &self.token_line.errors
     }
 }

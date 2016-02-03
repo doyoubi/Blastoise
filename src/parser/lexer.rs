@@ -1,7 +1,8 @@
 extern crate std;
 use std::rc::Rc;
 use std::option::Option::{Some, None};
-use ::parser::compile_error::{CompileError, CompileErrorType};
+use std::slice::Iter;
+use ::parser::compile_error::{CompileError, CompileErrorType, ErrorList};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TokenType {
@@ -58,8 +59,9 @@ pub struct Token
     pub token_type : TokenType,
 }
 
-pub type TokenList = std::vec::Vec<Rc<Token>>;
-pub type ErrorList = std::vec::Vec<Rc<CompileError>>;
+pub type TokenRef = Rc<Token>;
+pub type TokenList = std::vec::Vec<TokenRef>;
+pub type TokenIter<'a> = Iter<'a, TokenRef>;
 
 #[derive(Clone)]
 pub struct TokenLine
