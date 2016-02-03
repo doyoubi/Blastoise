@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::vec::Vec;
 
 
+#[allow(dead_code)]  // lint bug
 #[derive(Eq, PartialEq, Debug)]
 pub enum CompileErrorType {
     LexerInvalidEscapeChar,

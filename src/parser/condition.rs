@@ -1,13 +1,13 @@
 use std::fmt;
 use std::fmt::{Formatter, Display};
+use std::rc::Rc;
 use std::option::Option::{Some, None};
 use std::result::Result::{Ok, Err};
 use super::common::{Parser, ParseArithResult, ValueType};
 use super::lexer::{TokenIter, TokenType};
-use super::compile_error::{ErrorList, CompileErrorType};
+use super::compile_error::{ErrorList, CompileError, CompileErrorType};
 use super::common::{
-    check_single_token_type,
-    parse_single_token_type,
+    consume_next_token,
     parse_table_attr,
 };
 
@@ -81,12 +81,12 @@ impl Display for ArithOp {
 trait Expr : Display + ToString {}
 
 
-fn binary_fmt<T, U>(operator : &U, lhs : &T, rhs : &T, f : &mut Formatter) -> fmt::Result
+fn binary_fmt<T, U>(operator : U, lhs : &T, rhs : &T, f : &mut Formatter) -> fmt::Result
     where T : Display, U : Display {
     write!(f, "({} {} {})", lhs, operator, rhs)
 }
 
-fn unary_fmt<T>(operator: String, operant : &T, f : &mut Formatter) -> fmt::Result
+fn unary_fmt<T>(operator: &str, operant : &T, f : &mut Formatter) -> fmt::Result
     where T : Display {
     write!(f, "({} {})", operator, operant)
 }
@@ -111,9 +111,9 @@ enum ConditionExpr {
 impl Display for ConditionExpr {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         match self {
-            &ConditionExpr::LogicExpr{lhs, rhs, op} => binary_fmt(op, lhs, rhs, f),
-            &ConditionExpr::NotExpr{operant} => unary_fmt("not", operant, f),
-            &ConditionExpr::CmpExpr{lhs, rhs, op} => binary_fmt(op, lhs, rhs, f),
+            &ConditionExpr::LogicExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
+            &ConditionExpr::NotExpr{ref operant} => unary_fmt("not", operant, f),
+            &ConditionExpr::CmpExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ConditionExpr::ValueExpr(value) => write!(f, "{}", value),
         }
     }
@@ -141,10 +141,12 @@ pub enum ArithExpr {
 impl Display for ArithExpr {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         match self {
-            &ArithExpr::BinaryExpr{lhs, rhs, op} => binary_fmt(op, lhs, rhs, f),
-            &ArithExpr::MinusExpr{operant} => unary_fmt("-", operant, f),
-            &ArithExpr::ValueExpr{value, valueType} => write!(f, "({}({}))", valueType, value),
-            &ArithExpr::TableAttr{table, attr} => write!(f, "({}.{})", table.name, attr.name),
+            &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
+            &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
+            &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "({:?}({}))", value_type, value),
+            &ArithExpr::TableAttr{ref table, ref attr} => write!(f, "({}.{})", table.name, attr.name),
+            &ArithExpr::AggreFuncCall{ref func, ref table, ref attr} =>
+                write!(f, "{}({}.{})", func, table.name, attr.name),
         }
     }
 }
@@ -159,7 +161,7 @@ impl ArithExpr {
         //     return Err(errs);
         // }
         // let token = it.peekable().peek();
-        let token = try!(consume_next_token(it, ))
+        let token = try!(consume_next_token(it));
         match token.token_type {
             TokenType::IntegerLiteral
             | TokenType::FloatLiteral
@@ -167,24 +169,31 @@ impl ArithExpr {
             | TokenType::Null
                 => Ok(ArithExpr::ValueExpr{
                         value : token.value.clone(),
-                        value_type : token_type_to_value_type(token.token_type)
+                        value_type : token_type_to_value_type(token.token_type),
                     }),
             TokenType::Identifier =>
                 parse_table_attr(it, parser),
-            _ => (None,
-                format!("unexpected tokentype: {:?}, expect Literal or Identifier",
-                    token.tokentype))
+            _ => {
+                let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",
+                    token.token_type);
+                let e = Rc::new(CompileError{
+                    error_type : CompileErrorType::ParserUnExpectedTokenType,
+                    token : token,
+                    error_msg : err_msg,
+                });
+                Err(vec![e])
+            }
         }
     }
 }
 
-fn token_type_to_value_type(t : TokenType) {
+fn token_type_to_value_type(t : TokenType) -> ValueType {
     match t {
         TokenType::IntegerLiteral => ValueType::Integer,
-        TokenType::FloatLiteral => ValueType::FloatLiteral,
+        TokenType::FloatLiteral => ValueType::Float,
         TokenType::StringLiteral => ValueType::String,
         TokenType::Null => ValueType::Null,
-        _ => panic!("unexpected TokenType: {}", t),
+        _ => panic!("unexpected TokenType: {:?}", t),
     }
 }
 

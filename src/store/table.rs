@@ -16,16 +16,16 @@ pub enum AttrProperty {
 }
 
 pub struct Attr {
-    name : String,
-    attr_type : AttrType,
-    properties : Vec<AttrProperty>,
+    pub name : String,
+    pub attr_type : AttrType,
+    pub properties : Vec<AttrProperty>,
 }
 
 pub type AttrRef = Rc<Attr>;
 
 pub struct Table {
-    name : String,
-    attrs : Vec<Attr>,
+    pub name : String,
+    pub attrs : Vec<AttrRef>,
 }
 
 pub type TableRef = Rc<Table>;
