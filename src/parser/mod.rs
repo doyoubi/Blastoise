@@ -1,6 +1,8 @@
 mod lexer;
 mod compile_error;
+#[allow(dead_code)]
 mod common;
+#[allow(dead_code)]
 mod condition;
 
 #[allow(unused_imports)]

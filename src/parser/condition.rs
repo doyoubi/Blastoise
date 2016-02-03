@@ -3,9 +3,9 @@ use std::fmt::{Formatter, Display};
 use std::rc::Rc;
 use std::option::Option::{Some, None};
 use std::result::Result::{Ok, Err};
-use super::common::{Parser, ParseArithResult, ValueType};
+use super::common::{ParseArithResult, ValueType};
 use super::lexer::{TokenIter, TokenType};
-use super::compile_error::{ErrorList, CompileError, CompileErrorType};
+use super::compile_error::{CompileError, CompileErrorType};
 use super::common::{
     consume_next_token,
     parse_table_attr,
@@ -36,8 +36,8 @@ enum CmpOp {
     GE,
     EQ,
     NE,
-    IS,
-    IS_NOT,
+    Is,
+    IsNot,
 }
 
 impl Display for CmpOp {
@@ -49,8 +49,8 @@ impl Display for CmpOp {
             &CmpOp::GE => ">=".to_string(),
             &CmpOp::EQ => "=".to_string(),
             &CmpOp::NE => "!=".to_string(),
-            &CmpOp::IS => "is".to_string(),
-            &CmpOp::IS_NOT => "is not".to_string(),
+            &CmpOp::Is => "is".to_string(),
+            &CmpOp::IsNot => "is not".to_string(),
         })
     }
 }
@@ -130,7 +130,7 @@ pub enum ArithExpr {
     },
     MinusExpr { operant : ArithRef },
     ValueExpr { value : String, value_type : super::common::ValueType },
-    TableAttr { table : ::store::table::TableRef, attr : ::store::table::AttrRef },
+    TableAttr { table : Option<String>, attr : String },
     AggreFuncCall {
         func : String,
         table : ::store::table::TableRef,
@@ -144,7 +144,12 @@ impl Display for ArithExpr {
             &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
             &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "({:?}({}))", value_type, value),
-            &ArithExpr::TableAttr{ref table, ref attr} => write!(f, "({}.{})", table.name, attr.name),
+            &ArithExpr::TableAttr{ref table, ref attr} => {
+                match table {
+                    &Some(ref table) => write!(f, "({}.{})", table, attr),
+                    &None => write!(f, "{}", attr),
+                }
+            }
             &ArithExpr::AggreFuncCall{ref func, ref table, ref attr} =>
                 write!(f, "{}({}.{})", func, table.name, attr.name),
         }
@@ -152,11 +157,11 @@ impl Display for ArithExpr {
 }
 
 impl ArithExpr {
-    fn parse(it : &mut TokenIter, parser : & Parser) -> ParseArithResult {
+    fn parse(it : &mut TokenIter) -> ParseArithResult {
         Err(vec![])
     }
 
-    fn parse_arith_operant(it : &mut TokenIter, parser : &Parser) -> ParseArithResult {
+    fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         // if let Some(errs) = check_reach_the_end(it) {
         //     return Err(errs);
         // }
@@ -172,7 +177,7 @@ impl ArithExpr {
                         value_type : token_type_to_value_type(token.token_type),
                     }),
             TokenType::Identifier =>
-                parse_table_attr(it, parser),
+                parse_table_attr(it),
             _ => {
                 let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",
                     token.token_type);
@@ -197,6 +202,6 @@ fn token_type_to_value_type(t : TokenType) -> ValueType {
     }
 }
 
-fn parse_binary(it : &mut TokenIter, parser : &mut Parser) -> ParseArithResult {
+fn parse_binary(it : &mut TokenIter) -> ParseArithResult {
     Err(vec![])
 }
