@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::result::Result::{Ok, Err};
 use super::lexer::{Token, TokenRef, TokenType, TokenIter};
 use super::condition::ArithExpr;
-use super::compile_error::{CompileError, CompileErrorType, ErrorList};
+use super::compile_error::{CompileError, CompileErrorType, ErrorRef, ErrorList};
 
 
 #[allow(dead_code)]  // lint bug
@@ -100,5 +100,16 @@ pub fn parse_table_attr(it : &mut TokenIter) -> ParseArithResult {
             Ok(ArithExpr::TableAttr{ table : Some(token.value.clone()), attr : third_token.value.clone() })
         }
         _ => Ok(ArithExpr::TableAttr{ table : None, attr : token.value.clone() })
+    }
+}
+
+pub fn check_parse_to_end(it : &TokenIter) -> Option<ErrorRef> {
+    match it.clone().peekable().peek() {
+        None => None,
+        Some(token) => Some(Rc::new(CompileError{
+            error_type : CompileErrorType::ParserCanNotParseLeftToken,
+            token : (*token).clone(),
+            error_msg : format!("Can not parse the left tokens : {:?}", token.value),
+        })),
     }
 }

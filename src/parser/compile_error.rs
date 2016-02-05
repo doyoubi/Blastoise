@@ -15,6 +15,7 @@ pub enum CompileErrorType {
     ParserTableAttrNotExist,
     ParserNoTable,
     ParserLackOfSpecifyingTable,
+    ParserCanNotParseLeftToken,
 }
 
 #[derive(Debug)]
@@ -24,4 +25,5 @@ pub struct CompileError {
     pub error_msg : String,
 }
 
-pub type ErrorList = Vec<Rc<CompileError>>;
+pub type ErrorRef = Rc<CompileError>;
+pub type ErrorList = Vec<ErrorRef>;

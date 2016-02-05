@@ -3,6 +3,7 @@ use std::result::Result::Ok;
 use ::parser::condition::ArithExpr;
 use ::parser::common::{
     parse_table_attr,
+    check_parse_to_end,
 };
 
 #[test]
@@ -32,5 +33,23 @@ fn test_parse_table_attr() {
         assert_eq!(table, Some("table_name".to_string()));
         assert_eq!(attr, "attribute_name".to_string());
         assert_pattern!(it.next(), None);
+    }
+}
+
+#[test]
+fn test_check_parse_to_end() {
+    {
+        let tokens = gen_token!("");
+        assert_eq!(tokens.len(), 0);
+        let it = tokens.iter();
+        let res = check_parse_to_end(&it);
+        assert_pattern!(res, None);
+    }
+    {
+        let tokens = gen_token!("un_parsed_token");
+        assert_eq!(tokens.len(), 1);
+        let it = tokens.iter();
+        let res = check_parse_to_end(&it);
+        assert_pattern!(res, Some(_));
     }
 }
