@@ -3,7 +3,7 @@ use std::vec::Vec;
 
 
 #[allow(dead_code)]  // lint bug
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum CompileErrorType {
     LexerInvalidEscapeChar,
     LexerUnexpectedChar,

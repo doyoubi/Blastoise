@@ -158,15 +158,11 @@ impl Display for ArithExpr {
 }
 
 impl ArithExpr {
-    fn parse(it : &mut TokenIter) -> ParseArithResult {
+    pub fn parse(it : &mut TokenIter) -> ParseArithResult {
         Err(vec![])
     }
 
-    fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
-        // if let Some(errs) = check_reach_the_end(it) {
-        //     return Err(errs);
-        // }
-        // let token = it.peekable().peek();
+    pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(consume_next_token(it));
         match token.token_type {
             TokenType::IntegerLiteral
