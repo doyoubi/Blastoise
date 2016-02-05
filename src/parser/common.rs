@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
+use std::iter::ExactSizeIterator;
 use super::lexer::{Token, TokenRef, TokenType, TokenIter};
-use super::condition::ArithExpr;
 use super::compile_error::{CompileError, CompileErrorType, ErrorRef, ErrorList};
 
 
@@ -13,8 +13,6 @@ pub enum ValueType {
     String,
     Null,
 }
-
-pub type ParseArithResult = Result<ArithExpr, ErrorList>;
 
 fn gen_end_token(it : &TokenIter) -> TokenRef {
     let mut it = it.clone();
@@ -89,20 +87,6 @@ pub fn consume_next_token(it : &mut TokenIter)
     }
 }
 
-pub fn parse_table_attr(it : &mut TokenIter) -> ParseArithResult {
-    let token = try!(consume_next_token_with_type(it, TokenType::Identifier));
-    let mut look_ahead = it.clone();
-    let next_token_type = look_ahead.next().map(|tk| tk.token_type);
-    match next_token_type {
-        Some(TokenType::GetMember) => {
-            let third_token = try!(get_single_token_by_type(&look_ahead, TokenType::Identifier));
-            it.nth(1);
-            Ok(ArithExpr::TableAttr{ table : Some(token.value.clone()), attr : third_token.value.clone() })
-        }
-        _ => Ok(ArithExpr::TableAttr{ table : None, attr : token.value.clone() })
-    }
-}
-
 pub fn check_parse_to_end(it : &TokenIter) -> Option<ErrorRef> {
     match it.clone().peekable().peek() {
         None => None,
@@ -112,4 +96,47 @@ pub fn check_parse_to_end(it : &TokenIter) -> Option<ErrorRef> {
             error_msg : format!("Can not parse the left tokens : {:?}", token.value),
         })),
     }
+}
+
+pub fn align_iter(it1 : &mut TokenIter, it2 : &mut TokenIter) {
+    let (l1, l2) = (it1.len(), it2.len());
+    if l1 < l2 {
+        return align_iter(it2, it1);
+    }
+    if l1 - l2 > 0 {
+        it1.nth(l1 - l2 - 1);
+    }
+}
+
+// when success, iter will be changed
+// while not, iter stay still
+macro_rules! try_parse {
+    ($parse_func:ident, $iter:expr) => ({
+        use std::result::Result::{Ok, Err};
+        use std::convert::From;
+        let mut tmp = $iter.clone();
+        match $parse_func(&mut tmp) {
+            Ok(val) => {
+                ::parser::common::align_iter($iter, &mut tmp);
+                val
+            },
+            Err(err) => {
+                return Err(From::from(err))
+            },
+        }
+    });
+    ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
+        use std::result::Result::{Ok, Err};
+        use std::convert::From;
+        let mut tmp = $iter.clone();
+        match $parse_func(&mut tmp, $( $add_args ),*) {
+            Ok(val) => {
+                align_iter($iter, &mut tmp);
+                val
+            },
+            Err(err) => {
+                return Err(From::from(err))
+            },
+        }
+    })
 }

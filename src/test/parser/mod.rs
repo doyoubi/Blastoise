@@ -4,3 +4,5 @@ mod test_common;
 mod test_lexer;
 #[allow(unused_imports)]  // lint bug
 mod test_condition;
+#[allow(unused_imports)]  // lint bug
+mod test_attribute;

@@ -6,15 +6,6 @@ macro_rules! gen_token {
         });
 }
 
-macro_rules! extract {
-    ($expression:expr, $pattern:pat, $returned_value:expr) => (
-        match $expression {
-            $pattern => $returned_value,
-            _ => panic!("pattern not matched"),
-        }
-    )
-}
-
 macro_rules! assert_pattern {
     ($expression:expr, $pattern:pat) => (
         match $expression {

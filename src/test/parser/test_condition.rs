@@ -1,4 +1,4 @@
-use std::option::Option::{Some, None};
+use std::option::Option::None;
 use std::result::Result::{Ok, Err};
 use ::parser::condition::ArithExpr;
 use ::parser::common::ValueType;

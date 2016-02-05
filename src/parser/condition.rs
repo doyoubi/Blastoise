@@ -1,14 +1,13 @@
 use std::fmt;
 use std::fmt::{Formatter, Display};
 use std::rc::Rc;
-use std::option::Option::{Some, None};
 use std::result::Result::{Ok, Err};
-use super::common::{ParseArithResult, ValueType};
+use super::common::ValueType;
 use super::lexer::{TokenIter, TokenType};
-use super::compile_error::{CompileError, CompileErrorType};
+use super::compile_error::{CompileError, CompileErrorType, ErrorList};
+use super::attribute::AttributeExpr;
 use super::common::{
     consume_next_token,
-    parse_table_attr,
 };
 
 
@@ -121,6 +120,7 @@ impl Display for ConditionExpr {
 
 
 pub type ArithRef = Box<ArithExpr>;
+pub type ParseArithResult = Result<ArithExpr, ErrorList>;
 
 #[derive(Debug)]
 pub enum ArithExpr {
@@ -131,12 +131,7 @@ pub enum ArithExpr {
     },
     MinusExpr { operant : ArithRef },
     ValueExpr { value : String, value_type : super::common::ValueType },
-    TableAttr { table : Option<String>, attr : String },
-    AggreFuncCall {
-        func : String,
-        table : String,
-        attr : String,
-    },
+    Attr(AttributeExpr),
 }
 
 impl Display for ArithExpr {
@@ -145,22 +140,15 @@ impl Display for ArithExpr {
             &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
             &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "({:?}({}))", value_type, value),
-            &ArithExpr::TableAttr{ref table, ref attr} => {
-                match table {
-                    &Some(ref table) => write!(f, "({}.{})", table, attr),
-                    &None => write!(f, "{}", attr),
-                }
-            }
-            &ArithExpr::AggreFuncCall{ref func, ref table, ref attr} =>
-                write!(f, "{}({}.{})", func, table, attr),
+            &ArithExpr::Attr(ref attribute) => attribute.fmt(f),
         }
     }
 }
 
 impl ArithExpr {
-    pub fn parse(it : &mut TokenIter) -> ParseArithResult {
-        Err(vec![])
-    }
+    // pub fn parse(it : &mut TokenIter) -> ParseArithResult {
+    //     Err(vec![])
+    // }
 
     pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(consume_next_token(it));
@@ -173,8 +161,9 @@ impl ArithExpr {
                         value : token.value.clone(),
                         value_type : token_type_to_value_type(token.token_type),
                     }),
-            TokenType::Identifier =>
-                parse_table_attr(it),
+            TokenType::Identifier => {
+                Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))
+            }
             _ => {
                 let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",
                     token.token_type);
@@ -199,6 +188,6 @@ fn token_type_to_value_type(t : TokenType) -> ValueType {
     }
 }
 
-fn parse_binary(it : &mut TokenIter) -> ParseArithResult {
-    Err(vec![])
-}
+// fn parse_binary(it : &mut TokenIter) -> ParseArithResult {
+//     Err(vec![])
+// }
