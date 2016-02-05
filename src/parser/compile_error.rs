@@ -17,6 +17,7 @@ pub enum CompileErrorType {
     ParserLackOfSpecifyingTable,
 }
 
+#[derive(Debug)]
 pub struct CompileError {
     pub error_type : CompileErrorType,
     pub token : Rc<::parser::lexer::Token>,

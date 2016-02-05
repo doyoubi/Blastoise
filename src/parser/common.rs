@@ -91,13 +91,12 @@ pub fn consume_next_token(it : &mut TokenIter)
 
 pub fn parse_table_attr(it : &mut TokenIter) -> ParseArithResult {
     let token = try!(consume_next_token_with_type(it, TokenType::Identifier));
-    it.next_back();
     let mut look_ahead = it.clone();
-    let next_token_type = look_ahead.nth(2).map(|tk| tk.token_type);
+    let next_token_type = look_ahead.next().map(|tk| tk.token_type);
     match next_token_type {
         Some(TokenType::GetMember) => {
             let third_token = try!(get_single_token_by_type(&look_ahead, TokenType::Identifier));
-            it.nth(3);
+            it.nth(1);
             Ok(ArithExpr::TableAttr{ table : Some(token.value.clone()), attr : third_token.value.clone() })
         }
         _ => Ok(ArithExpr::TableAttr{ table : None, attr : token.value.clone() })

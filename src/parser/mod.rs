@@ -1,10 +1,6 @@
-mod lexer;
-mod compile_error;
+pub mod lexer;
+pub mod compile_error;
 #[allow(dead_code)]
-mod common;
+pub mod common;
 #[allow(dead_code)]
-mod condition;
-
-#[allow(unused_imports)]
-mod test_lexer;
-mod test_common;
+pub mod condition;

@@ -52,6 +52,7 @@ pub enum TokenType {
     UnKnown,
 }
 
+#[derive(Debug)]
 pub struct Token
 {
     pub column : i32,

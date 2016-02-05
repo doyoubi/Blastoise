@@ -12,7 +12,7 @@ use super::common::{
 };
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum LogicOp {
     Or,
     And,
@@ -28,7 +28,7 @@ impl Display for LogicOp {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum CmpOp {
     LT,
     GT,
@@ -56,7 +56,7 @@ impl Display for CmpOp {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum ArithOp {
     Add,
     Sub,
@@ -122,6 +122,7 @@ impl Display for ConditionExpr {
 
 pub type ArithRef = Box<ArithExpr>;
 
+#[derive(Debug)]
 pub enum ArithExpr {
     BinaryExpr {
         lhs : ArithRef,
@@ -133,8 +134,8 @@ pub enum ArithExpr {
     TableAttr { table : Option<String>, attr : String },
     AggreFuncCall {
         func : String,
-        table : ::store::table::TableRef,
-        attr : ::store::table::AttrRef,
+        table : String,
+        attr : String,
     },
 }
 
@@ -151,7 +152,7 @@ impl Display for ArithExpr {
                 }
             }
             &ArithExpr::AggreFuncCall{ref func, ref table, ref attr} =>
-                write!(f, "{}({}.{})", func, table.name, attr.name),
+                write!(f, "{}({}.{})", func, table, attr),
         }
     }
 }
