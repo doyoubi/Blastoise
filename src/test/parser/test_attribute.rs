@@ -14,6 +14,7 @@ fn test_single_attribute_name(parse_func : ParseFun) {
     let attr_exp = parse_func(&mut it);
     assert_pattern!(attr_exp, Ok(_));
     let attr_exp = attr_exp.unwrap();
+    assert_eq!(attr_exp.to_string(), "attribute_name");
     let (table, attr) = extract!(attr_exp, AttributeExpr::TableAttr{ table, attr }, (table, attr));
     assert!(!table.is_some());
     assert_eq!(attr, "attribute_name".to_string());
@@ -27,6 +28,7 @@ fn test_table_attribute(parse_func : ParseFun) {
     let attr_exp = parse_func(&mut it);
     assert_pattern!(attr_exp, Ok(_));
     let attr_exp = attr_exp.unwrap();
+    assert_eq!(attr_exp.to_string(), "(table_name.attribute_name)");
     let (table, attr) = extract!(attr_exp, AttributeExpr::TableAttr{ table, attr }, (table, attr));
     assert_eq!(table, Some("table_name".to_string()));
     assert_eq!(attr, "attribute_name".to_string());
@@ -60,6 +62,7 @@ fn test_aggre_func_with_table_name(parse_func : ParseFun) {
     let func_exp = parse_func(&mut it);
     assert_pattern!(func_exp, Ok(..));
     let func_exp = func_exp.unwrap();
+    assert_eq!(func_exp.to_string(), "sum(table_name.attribute_name)");
     let (func, table, attr) = extract!(
         func_exp, AttributeExpr::AggreFuncCall{ func, table, attr }, (func, table, attr));
     assert_eq!(func, "sum".to_string());
@@ -75,6 +78,7 @@ fn test_aggre_func_with_single_attr(parse_func : ParseFun) {
     let func_exp = parse_func(&mut it);
     assert_pattern!(func_exp, Ok(..));
     let func_exp = func_exp.unwrap();
+    assert_eq!(func_exp.to_string(), "sum(attribute_name)");
     let (func, table, attr) = extract!(
         func_exp, AttributeExpr::AggreFuncCall{ func, table, attr }, (func, table, attr));
     assert_eq!(func, "sum".to_string());

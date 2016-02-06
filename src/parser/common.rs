@@ -6,7 +6,7 @@ use super::compile_error::{CompileError, CompileErrorType, ErrorRef, ErrorList};
 
 
 #[allow(dead_code)]  // lint bug
-#[derive(Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ValueType {
     Integer,
     Float,

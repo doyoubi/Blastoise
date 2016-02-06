@@ -141,7 +141,7 @@ impl Display for ArithExpr {
         match self {
             &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
-            &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "({:?}({}))", value_type, value),
+            &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "{:?}({})", value_type, value),
             &ArithExpr::Attr(ref attribute) => attribute.fmt(f),
         }
     }

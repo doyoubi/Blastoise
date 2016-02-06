@@ -8,17 +8,19 @@ use ::parser::attribute::AttributeExpr;
 
 
 macro_rules! test_literal {
-    ($input_str:expr, $value:expr, $token_type:pat) => ({
+    ($input_str:expr, $value:expr, $token_type:expr) => ({
         let tokens = gen_token!($input_str);
         assert_eq!(tokens.len(), 1);
         let mut it = tokens.iter();
         let arith_exp = ArithExpr::parse_arith_operant(&mut it);
         assert_pattern!(arith_exp, Ok(_));
         let arith_exp = arith_exp.unwrap();
+        assert_eq!(arith_exp.to_string(),
+            format!("{:?}({})", $token_type, $value));
         let (value, value_type) = extract!(
             arith_exp, ArithExpr::ValueExpr{ value, value_type }, (value, value_type));
         assert_eq!(value, $value);
-        assert_pattern!(value_type, $token_type);
+        assert_eq!(value_type, $token_type);
         assert_pattern!(it.next(), None);
     });
 }
@@ -45,9 +47,10 @@ fn test_single_attribute_name(parse_func : ParseFun) {
     let attr_exp = parse_func(&mut it);
     assert_pattern!(attr_exp, Ok(..));
     let attr_exp = attr_exp.unwrap();
+    assert_eq!(attr_exp.to_string(), "attribute_name");
     let (table, attr) = extract!(attr_exp, ArithExpr::Attr(AttributeExpr::TableAttr{ table, attr }), (table, attr));
     assert!(!table.is_some());
-    assert_eq!(attr, "attribute_name".to_string());
+    assert_eq!(attr, "attribute_name");
     assert_pattern!(it.next(), None);
 }
 
@@ -68,10 +71,11 @@ fn test_minus_expr(parse_func : ParseFun) {
     let minus_exp = parse_func(&mut it);
     assert_pattern!(minus_exp, Ok(..));
     let minus_exp = minus_exp.unwrap();
+    assert_eq!(minus_exp.to_string(), "(- Integer(1))");
     let inner_exp = extract!(minus_exp, ArithExpr::MinusExpr{operant}, operant);
     let (value, value_type) = extract!(
         *inner_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
-    assert_eq!(value, "1".to_string());
+    assert_eq!(value, "1");
     assert_pattern!(value_type, ValueType::Integer);
     assert_pattern!(it.next(), None);
 }
@@ -83,6 +87,7 @@ fn test_plus_expr(parse_func : ParseFun) {
     let value_exp = parse_func(&mut it);
     assert_pattern!(value_exp, Ok(..));
     let value_exp = value_exp.unwrap();
+    assert_eq!(value_exp.to_string(), "Integer(1)");
     let (value, value_type) = extract!(
         value_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
     assert_eq!(value, "1".to_string());
@@ -97,6 +102,7 @@ fn test_bracket(parse_func : ParseFun) {
     let value_exp = parse_func(&mut it);
     assert_pattern!(value_exp, Ok(..));
     let value_exp = value_exp.unwrap();
+    assert_eq!(value_exp.to_string(), "Integer(1)");
     let (value, value_type) = extract!(
         value_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
     assert_eq!(value, "1".to_string());
