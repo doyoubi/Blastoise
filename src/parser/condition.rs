@@ -7,7 +7,9 @@ use super::lexer::{TokenIter, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList};
 use super::attribute::AttributeExpr;
 use super::common::{
+    align_iter,
     get_next_token,
+    consume_next_token_with_type,
 };
 
 
@@ -146,9 +148,28 @@ impl Display for ArithExpr {
 }
 
 impl ArithExpr {
-    // pub fn parse(it : &mut TokenIter) -> ParseArithResult {
-    //     Err(vec![])
-    // }
+    pub fn parse(it : &mut TokenIter) -> ParseArithResult {
+        ArithExpr::parse_primitive(it) // not complete yet
+    }
+
+    pub fn parse_primitive(it : &mut TokenIter) -> ParseArithResult {
+        let token = try!(get_next_token(it));
+        match token.token_type {
+            TokenType::Sub => Ok(ArithExpr::MinusExpr{ operant : ArithRef::new(
+                    try_parse_unary_op_helper!(ArithExpr::parse_primitive, it)
+                )}),
+            TokenType::Add => Ok(try_parse_unary_op_helper!(ArithExpr::parse_primitive, it)),
+            TokenType::OpenBracket => {
+                let mut tmp = it.clone();
+                tmp.next();
+                let arith_exp = try!(ArithExpr::parse(&mut tmp));
+                try!(consume_next_token_with_type(&mut tmp, TokenType::CloseBracket));
+                align_iter(it, &mut tmp);
+                Ok(arith_exp)
+            }
+            _ => Ok(try_parse!(ArithExpr::parse_arith_operant, it)),
+        }
+    }
 
     pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(get_next_token(it));
@@ -165,7 +186,7 @@ impl ArithExpr {
                         })
                 }
             TokenType::Identifier => {
-                Ok(ArithExpr::Attr(try_parse!(AttributeExpr::parse, it)))
+                Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))
             }
             _ => {
                 let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",

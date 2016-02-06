@@ -136,19 +136,27 @@ macro_rules! try_parse_helper {
 macro_rules! try_parse {
     ($parse_func:ident, $iter:expr) => ({
         let mut tmp = $iter.clone();
-        try_parse_helper!($parse_func($iter), $iter, tmp)
+        try_parse_helper!($parse_func(&mut tmp), $iter, tmp)
     });
     ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
         let mut tmp = $iter.clone();
-        try_parse_helper!($parse_func($iter, $($add_args),* ), $iter, tmp)
+        try_parse_helper!($parse_func(&mut tmp, $($add_args),* ), $iter, tmp)
     });
     ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
         let mut tmp = $iter.clone();
-        try_parse_helper!($type_name::$parse_func($iter), $iter, tmp)
+        try_parse_helper!($type_name::$parse_func(&mut tmp), $iter, tmp)
     });
     ($type_name:ident :: $parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
         let mut tmp = $iter.clone();
-        try_parse_helper!($type_name::$parse_func($iter, $($add_args),* ), $iter, tmp)
+        try_parse_helper!($type_name::$parse_func(&mut tmp, $($add_args),* ), $iter, tmp)
+    });
+}
+
+macro_rules! try_parse_unary_op_helper {
+    ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
+        let mut tmp = $iter.clone();
+        tmp.next();
+        try_parse_helper!($type_name::$parse_func(&mut tmp), $iter, tmp)
     });
 }
 
@@ -172,19 +180,19 @@ macro_rules! or_parse_helper {
 macro_rules! or_parse {
     ($parse_func:ident, $iter:expr) => ({
         let mut tmp = $iter.clone();
-        or_parse_helper!($parse_func($iter), $iter, tmp)
+        or_parse_helper!($parse_func(&mut tmp), $iter, tmp)
     });
     ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
         let mut tmp = $iter.clone();
-        or_parse_helper!($parse_func($iter, $($add_args),* ), $iter, tmp)
+        or_parse_helper!($parse_func(&mut tmp, $($add_args),* ), $iter, tmp)
     });
     ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
         let mut tmp = $iter.clone();
-        or_parse_helper!($type_name::$parse_func($iter), $iter, tmp)
+        or_parse_helper!($type_name::$parse_func(&mut tmp), $iter, tmp)
     });
     ($type_name:ident :: $parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
         let mut tmp = $iter.clone();
-        or_parse_helper!($type_name::$parse_func($iter, $($add_args),* ), $iter, tmp)
+        or_parse_helper!($type_name::$parse_func(&mut tmp, $($add_args),* ), $iter, tmp)
     });
 }
 
