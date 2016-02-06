@@ -44,7 +44,10 @@ impl Display for AttributeExpr {
 
 impl AttributeExpr {
     pub fn parse(it : &mut TokenIter) -> ParseAttrResult {
-        AttributeExpr::parse_table_attr(it)  // not finish yet
+        or_parse_combine!(it,
+            AttributeExpr::parse_aggre_func,
+            AttributeExpr::parse_table_attr
+        )
     }
 
     pub fn parse_table_attr(it : &mut TokenIter) -> ParseAttrResult  {

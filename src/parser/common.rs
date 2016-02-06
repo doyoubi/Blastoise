@@ -151,3 +151,56 @@ macro_rules! try_parse {
         try_parse_helper!($type_name::$parse_func($iter, $($add_args),* ), $iter, tmp)
     });
 }
+
+macro_rules! or_parse_helper {
+    ($result:expr, $iter:expr, $tmp:expr) => ({
+        use std::result::Result::{Ok, Err};
+        match $result {
+            Ok(val) => {
+                ::parser::common::align_iter($iter, &mut $tmp);
+                return Ok(val)
+            },
+            Err(err) => {
+                err
+            },
+        }
+    });
+}
+
+// when success, iter will be changed and return the parsed Expr
+// while not, iter stay still
+macro_rules! or_parse {
+    ($parse_func:ident, $iter:expr) => ({
+        let mut tmp = $iter.clone();
+        or_parse_helper!($parse_func($iter), $iter, tmp)
+    });
+    ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
+        let mut tmp = $iter.clone();
+        or_parse_helper!($parse_func($iter, $($add_args),* ), $iter, tmp)
+    });
+    ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
+        let mut tmp = $iter.clone();
+        or_parse_helper!($type_name::$parse_func($iter), $iter, tmp)
+    });
+    ($type_name:ident :: $parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
+        let mut tmp = $iter.clone();
+        or_parse_helper!($type_name::$parse_func($iter, $($add_args),* ), $iter, tmp)
+    });
+}
+
+macro_rules! or_parse_combine {
+    ($iter:expr, $( $type_name:ident :: $parse_func:ident ),+ ) => ({
+        use std::vec::Vec;
+        let mut errors = Vec::new();
+        $(
+            let errs = or_parse!($type_name::$parse_func, $iter);
+            ::parser::common::extend_from_other(&mut errors, &errs);
+        )+
+        Err(errors)
+    });
+}
+
+// should be replaced when upgrade rust to 1.6
+pub fn extend_from_other(errors : &mut Vec<ErrorRef>, other : &Vec<ErrorRef>) {
+    errors.extend(other.iter().cloned());
+}
