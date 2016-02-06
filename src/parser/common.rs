@@ -49,7 +49,7 @@ fn gen_reach_the_end_err(it : &TokenIter) -> ErrorList {
     vec![err]
 }
 
-pub fn get_single_token_by_type(it : &TokenIter, token_type : TokenType)
+pub fn get_next_token_with_type(it : &TokenIter, token_type : TokenType)
         -> Result<TokenRef, ErrorList> {
     let token : TokenRef = match it.clone().peekable().peek() {
         Some(token) => (*token).clone(),
@@ -68,9 +68,16 @@ pub fn get_single_token_by_type(it : &TokenIter, token_type : TokenType)
     Err(vec![err])
 }
 
+pub fn get_next_token(it : &TokenIter) -> Result<TokenRef, ErrorList> {
+    match it.clone().peekable().peek() {
+        Some(token) => Ok((*token).clone()),
+        None => Err(gen_reach_the_end_err(it)),
+    }
+}
+
 pub fn consume_next_token_with_type(it : &mut TokenIter, token_type : TokenType)
         -> Result<TokenRef, ErrorList> {
-    match get_single_token_by_type(it, token_type) {
+    match get_next_token_with_type(it, token_type) {
         Ok(token) => {
             it.next();
             Ok(token)
@@ -108,16 +115,13 @@ pub fn align_iter(it1 : &mut TokenIter, it2 : &mut TokenIter) {
     }
 }
 
-// when success, iter will be changed
-// while not, iter stay still
-macro_rules! try_parse {
-    ($parse_func:ident, $iter:expr) => ({
+macro_rules! try_parse_helper {
+    ($result:expr, $iter:expr, $tmp:expr) => ({
         use std::result::Result::{Ok, Err};
         use std::convert::From;
-        let mut tmp = $iter.clone();
-        match $parse_func(&mut tmp) {
+        match $result {
             Ok(val) => {
-                ::parser::common::align_iter($iter, &mut tmp);
+                ::parser::common::align_iter($iter, &mut $tmp);
                 val
             },
             Err(err) => {
@@ -125,18 +129,25 @@ macro_rules! try_parse {
             },
         }
     });
-    ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
-        use std::result::Result::{Ok, Err};
-        use std::convert::From;
+}
+
+// when success, iter will be changed
+// while not, iter stay still
+macro_rules! try_parse {
+    ($parse_func:ident, $iter:expr) => ({
         let mut tmp = $iter.clone();
-        match $parse_func(&mut tmp, $( $add_args ),*) {
-            Ok(val) => {
-                align_iter($iter, &mut tmp);
-                val
-            },
-            Err(err) => {
-                return Err(From::from(err))
-            },
-        }
-    })
+        try_parse_helper!($parse_func($iter), $iter, tmp)
+    });
+    ($parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
+        let mut tmp = $iter.clone();
+        try_parse_helper!($parse_func($iter, $($add_args),* ), $iter, tmp)
+    });
+    ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
+        let mut tmp = $iter.clone();
+        try_parse_helper!($type_name::$parse_func($iter), $iter, tmp)
+    });
+    ($type_name:ident :: $parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
+        let mut tmp = $iter.clone();
+        try_parse_helper!($type_name::$parse_func($iter, $($add_args),* ), $iter, tmp)
+    });
 }

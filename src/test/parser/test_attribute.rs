@@ -1,6 +1,7 @@
 use std::option::Option::{Some, None};
 use std::result::Result::Ok;
 use ::parser::attribute::AttributeExpr;
+use ::parser::compile_error::CompileErrorType;
 
 
 #[test]
@@ -30,5 +31,17 @@ fn test_parse_table_attr() {
         assert_eq!(table, Some("table_name".to_string()));
         assert_eq!(attr, "attribute_name".to_string());
         assert_pattern!(it.next(), None);
+    }
+    {
+        // test fail
+        let tokens = gen_token!("1");
+        assert_eq!(tokens.len(), 1);
+        let mut it = tokens.iter();
+        assert_eq!(it.len(), 1);
+        let attr_exp = AttributeExpr::parse_table_attr(&mut it);
+        assert_pattern!(attr_exp, Err(_));
+        let ref err = attr_exp.unwrap_err()[0];
+        assert_eq!(err.error_type, CompileErrorType::ParserUnExpectedTokenType);
+        assert_eq!(it.len(), 1);
     }
 }

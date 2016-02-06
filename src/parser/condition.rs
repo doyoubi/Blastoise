@@ -7,7 +7,7 @@ use super::lexer::{TokenIter, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList};
 use super::attribute::AttributeExpr;
 use super::common::{
-    consume_next_token,
+    get_next_token,
 };
 
 
@@ -151,18 +151,21 @@ impl ArithExpr {
     // }
 
     pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
-        let token = try!(consume_next_token(it));
+        let token = try!(get_next_token(it));
         match token.token_type {
             TokenType::IntegerLiteral
             | TokenType::FloatLiteral
             | TokenType::StringLiteral
             | TokenType::Null
-                => Ok(ArithExpr::ValueExpr{
-                        value : token.value.clone(),
-                        value_type : token_type_to_value_type(token.token_type),
-                    }),
+                => {
+                    it.next();
+                    Ok(ArithExpr::ValueExpr{
+                            value : token.value.clone(),
+                            value_type : token_type_to_value_type(token.token_type),
+                        })
+                }
             TokenType::Identifier => {
-                Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))
+                Ok(ArithExpr::Attr(try_parse!(AttributeExpr::parse, it)))
             }
             _ => {
                 let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",

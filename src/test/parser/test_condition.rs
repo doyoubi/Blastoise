@@ -25,17 +25,29 @@ macro_rules! test_literal {
 fn test_parse_arith_operant() {
     test_literal!("233", "233", ValueType::Integer);
     test_literal!("233.666", "233.666", ValueType::Float);
-    test_literal!("\"identifier\"", "identifier", ValueType::String);
+    test_literal!("\"string\"", "string", ValueType::String);
     test_literal!("null", "null", ValueType::Null);
+    {
+        let tokens = gen_token!("attribute_name");
+        assert_eq!(tokens.len(), 1);
+        let mut it = tokens.iter();
+        let attr_exp = ArithExpr::parse_arith_operant(&mut it);
+        assert_pattern!(attr_exp, Ok(..));
+        let attr_exp = attr_exp.unwrap();
+        assert_pattern!(attr_exp, ArithExpr::Attr(_));
+        assert_pattern!(it.next(), None);
+    }
     {
         let tokens = gen_token!("+");
         assert_eq!(tokens.len(), 1);
         let mut it = tokens.iter();
+        assert_eq!(it.len(), 1);
         let invalid_exp = ArithExpr::parse_arith_operant(&mut it);
         assert_pattern!(invalid_exp, Err(_));
         let errs = invalid_exp.unwrap_err();
         assert_eq!(errs.len(), 1);
         let ref err = errs[0];
         assert_pattern!(err.error_type, CompileErrorType::ParserUnExpectedTokenType);
+        assert_eq!(it.len(), 1);
     }
 }
