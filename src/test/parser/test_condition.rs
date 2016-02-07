@@ -1,5 +1,6 @@
 use std::option::Option::None;
 use std::result::Result::{Ok, Err};
+use std::vec::Vec;
 use ::parser::lexer::TokenIter;
 use ::parser::condition::{ArithExpr, ParseArithResult};
 use ::parser::common::ValueType;
@@ -117,9 +118,9 @@ fn test_parse_primitive() {
     test_single_attribute_name(ArithExpr::parse_primitive);
 }
 
-fn test_parse_second_binary(parse_func : ParseFun) {
-    for op in &["*", "/", "%"] {
-        let input_str = format!("1 {}1", op);
+fn test_parse_second_binary(parse_func : ParseFun, ops : Vec<&str>) {
+    for op in &ops {
+        let input_str = format!("1 {}233", op);
         let tokens = gen_token!(&input_str);
         assert_eq!(tokens.len(), 3);
         let mut it = tokens.iter();
@@ -127,13 +128,33 @@ fn test_parse_second_binary(parse_func : ParseFun) {
         assert_pattern!(bin_exp, Ok(..));
         let bin_exp = bin_exp.unwrap();
         assert_eq!(bin_exp.to_string(),
-            format!("(Integer(1) {} Integer(1))", op));
+            format!("(Integer(1) {} Integer(233))", op));
+        assert_pattern!(it.next(), None);
+    }
+}
+
+fn test_parse_longer_second_binary(parse_func : ParseFun, ops : Vec<&str>) {
+    for op in &ops {
+        let input_str = format!("1 {}233{} 1", op, op);
+        let tokens = gen_token!(&input_str);
+        assert_eq!(tokens.len(), 5);
+        let mut it = tokens.iter();
+        let bin_exp = parse_func(&mut it);
+        assert_pattern!(bin_exp, Ok(..));
+        let bin_exp = bin_exp.unwrap();
+        assert_eq!(bin_exp.to_string(),
+            format!("((Integer(1) {} Integer(233)) {} Integer(1))", op, op));
         assert_pattern!(it.next(), None);
     }
 }
 
 #[test]
 fn test_parse_binary() {
-    test_parse_second_binary(ArithExpr::parse_second_binary);
+    test_parse_second_binary(ArithExpr::parse_second_binary, vec!["*", "/", "%"]);
+    test_parse_longer_second_binary(ArithExpr::parse_second_binary, vec!["*", "/", "%"]);
+    test_invalid_tokens(ArithExpr::parse_second_binary, "*");
+
+    test_parse_second_binary(ArithExpr::parse_first_binary, vec!["+", "-"]);
+    test_parse_longer_second_binary(ArithExpr::parse_first_binary, vec!["+", "-"]);
     test_invalid_tokens(ArithExpr::parse_second_binary, "*");
 }

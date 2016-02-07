@@ -177,7 +177,12 @@ macro_rules! parse_binary {
 
 impl ArithExpr {
     pub fn parse(it : &mut TokenIter) -> ParseArithResult {
-        ArithExpr::parse_primitive(it) // not complete yet
+        ArithExpr::parse_first_binary(it)
+    }
+
+    pub fn parse_first_binary(it : &mut TokenIter) -> ParseArithResult {
+        let ops = [TokenType::Add, TokenType::Sub];
+        parse_binary!(it, ops, ArithExpr::parse_primitive, BinaryExpr, ArithRef, to_arith_op)
     }
 
     pub fn parse_second_binary(it : &mut TokenIter) -> ParseArithResult {
