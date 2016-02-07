@@ -209,6 +209,7 @@ fn test_parse_not_cond(parse_func : ParseCondFun) {
     assert_pattern!(exp, Ok(..));
     let exp = exp.unwrap();
     assert_eq!(exp.to_string(), "(not (Integer(1) > Integer(2)))");
+    assert_pattern!(it.next(), None);
 }
 
 fn test_cond_parse_braket(parse_func : ParseCondFun) {
@@ -219,6 +220,7 @@ fn test_cond_parse_braket(parse_func : ParseCondFun) {
     assert_pattern!(exp, Ok(..));
     let exp = exp.unwrap();
     assert_eq!(exp.to_string(), "(Integer(1) > Integer(2))");
+    assert_pattern!(it.next(), None);
 }
 
 #[test]
@@ -226,4 +228,36 @@ fn test_cond_parse_primitive() {
     test_parse_not_cond(ConditionExpr::parse_primitive);
     test_cond_parse_braket(ConditionExpr::parse_primitive);
     test_parse_cmp(ConditionExpr::parse_primitive);
+    test_invalid_tokens(ConditionExpr::parse_primitive, "1 + 2", 3, CompileErrorType::ParserNoMoreToken)
+}
+
+fn test_or_and(parse_func : ParseCondFun) {
+    let tokens = gen_token!("1 > 2 or 3 < 4 and 5 = 6 or 7 >= 8");
+    assert_eq!(tokens.len(), 15);
+    let mut it = tokens.iter();
+    let exp = parse_func(&mut it);
+    assert_pattern!(exp, Ok(..));
+    let exp = exp.unwrap();
+    assert_eq!(exp.to_string(),
+        "(((Integer(1) > Integer(2)) or ((Integer(3) < Integer(4)) and (Integer(5) = Integer(6)))) or (Integer(7) >= Integer(8)))");
+    assert_pattern!(it.next(), None);
+}
+
+fn test_or_and_with_bracket(parse_func : ParseCondFun) {
+    let tokens = gen_token!("1 > 2 or (3 < 4 or 7 >= 8)");
+    assert_eq!(tokens.len(), 13);
+    let mut it = tokens.iter();
+    let exp = parse_func(&mut it);
+    assert_pattern!(exp, Ok(..));
+    let exp = exp.unwrap();
+    assert_eq!(exp.to_string(),
+        "((Integer(1) > Integer(2)) or ((Integer(3) < Integer(4)) or (Integer(7) >= Integer(8))))");
+    assert_pattern!(it.next(), None);
+}
+
+#[test]
+fn test_binary_cond_exp() {
+    test_or_and(ConditionExpr::parse_or);
+    test_or_and_with_bracket(ConditionExpr::parse_or);
+    test_invalid_tokens(ConditionExpr::parse_or, "1 + 2", 3, CompileErrorType::ParserNoMoreToken)
 }

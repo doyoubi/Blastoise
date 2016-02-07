@@ -196,8 +196,18 @@ macro_rules! parse_binary {
 }
 
 impl ConditionExpr {
-    pub fn parse(it : &mut TokenIter) ->ParseCondResult {
-        ConditionExpr::parse_primitive(it)
+    pub fn parse(it : &mut TokenIter) -> ParseCondResult {
+        ConditionExpr::parse_or(it)
+    }
+
+    pub fn parse_or(it : &mut TokenIter) -> ParseCondResult {
+        let ops = [TokenType::Or];
+        parse_binary!(it, ops, ConditionExpr::parse_and, LogicExpr, CondRef, to_logic_op)
+    }
+
+    pub fn parse_and(it : &mut TokenIter) -> ParseCondResult {
+        let ops = [TokenType::And];
+        parse_binary!(it, ops, ConditionExpr::parse_primitive, LogicExpr, CondRef, to_logic_op)
     }
 
     pub fn parse_primitive(it : &mut TokenIter) -> ParseCondResult {
