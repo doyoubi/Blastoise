@@ -22,7 +22,7 @@ and_expr ::= cond_primitive [AND cond_primitive ...]
 cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr | true | false
 
 cmp_expr ::= cmp_operant cmp_operator cmp_operant
-cmp_operant ::= arith_expr
+cmp_operant ::= arith_expr | string | null
 cmp_operator ::= < | > | <= | >= | = | != | is | is not
 
 arith_expr ::= first_expr

@@ -1,34 +1,35 @@
 use std::option::Option::None;
 use std::result::Result::{Ok, Err};
 use std::vec::Vec;
+use std::fmt::Debug;
 use ::parser::lexer::TokenIter;
-use ::parser::condition::{ArithExpr, ParseArithResult};
+use ::parser::condition::{ArithExpr, ParseArithResult, CmpOperantExpr, ParseCondResult, ConditionExpr};
 use ::parser::common::ValueType;
-use ::parser::compile_error::CompileErrorType;
+use ::parser::compile_error::{CompileErrorType, ErrorList};
 use ::parser::attribute::AttributeExpr;
 
 
 macro_rules! test_literal {
-    ($input_str:expr, $value:expr, $token_type:expr) => ({
+    ($input_str:expr, $value:expr, $token_type:expr, $expr_type:ident :: $parse_func:ident) => ({
         let tokens = gen_token!($input_str);
         assert_eq!(tokens.len(), 1);
         let mut it = tokens.iter();
-        let arith_exp = ArithExpr::parse_arith_operant(&mut it);
+        let arith_exp = $expr_type::$parse_func(&mut it);
         assert_pattern!(arith_exp, Ok(_));
         let arith_exp = arith_exp.unwrap();
         assert_eq!(arith_exp.to_string(),
             format!("{:?}({})", $token_type, $value));
         let (value, value_type) = extract!(
-            arith_exp, ArithExpr::ValueExpr{ value, value_type }, (value, value_type));
+            arith_exp, $expr_type::ValueExpr{ value, value_type }, (value, value_type));
         assert_eq!(value, $value);
         assert_eq!(value_type, $token_type);
         assert_pattern!(it.next(), None);
     });
 }
 
-type ParseFun = fn(&mut TokenIter) -> ParseArithResult;
+type ParseArithFun = fn(&mut TokenIter) -> ParseArithResult;
 
-fn test_invalid_tokens(parse_func : ParseFun, input_str : &str) {
+fn test_invalid_tokens<Exp : Debug>(parse_func : fn(&mut TokenIter) -> Result<Exp, ErrorList>, input_str : &str) {
     let tokens = gen_token!(input_str);
     assert_eq!(tokens.len(), 1);
     let mut it = tokens.iter();
@@ -40,7 +41,7 @@ fn test_invalid_tokens(parse_func : ParseFun, input_str : &str) {
     assert_eq!(err.error_type, CompileErrorType::ParserUnExpectedTokenType);
 }
 
-fn test_single_attribute_name(parse_func : ParseFun) {
+fn test_single_attribute_name(parse_func : ParseArithFun) {
     let tokens = gen_token!("attribute_name");
     assert_eq!(tokens.len(), 1);
     let mut it = tokens.iter();
@@ -56,13 +57,13 @@ fn test_single_attribute_name(parse_func : ParseFun) {
 
 #[test]
 fn test_parse_arith_operant() {
-    test_literal!("233", "233", ValueType::Integer);
-    test_literal!("233.666", "233.666", ValueType::Float);
+    test_literal!("233", "233", ValueType::Integer, ArithExpr::parse_arith_operant);
+    test_literal!("233.666", "233.666", ValueType::Float, ArithExpr::parse_arith_operant);
     test_single_attribute_name(ArithExpr::parse_arith_operant);
     test_invalid_tokens(ArithExpr::parse_arith_operant, "or");
 }
 
-fn test_minus_expr(parse_func : ParseFun) {
+fn test_minus_expr(parse_func : ParseArithFun) {
     let tokens = gen_token!("-1");
     assert_eq!(tokens.len(), 2);
     let mut it = tokens.iter();
@@ -78,7 +79,7 @@ fn test_minus_expr(parse_func : ParseFun) {
     assert_pattern!(it.next(), None);
 }
 
-fn test_plus_expr(parse_func : ParseFun) {
+fn test_plus_expr(parse_func : ParseArithFun) {
     let tokens = gen_token!("+1");
     assert_eq!(tokens.len(), 2);
     let mut it = tokens.iter();
@@ -93,7 +94,7 @@ fn test_plus_expr(parse_func : ParseFun) {
     assert_pattern!(it.next(), None);
 }
 
-fn test_bracket(parse_func : ParseFun) {
+fn test_bracket(parse_func : ParseArithFun) {
     let tokens = gen_token!("(1)");
     assert_eq!(tokens.len(), 3);
     let mut it = tokens.iter();
@@ -116,7 +117,7 @@ fn test_parse_primitive() {
     test_single_attribute_name(ArithExpr::parse_primitive);
 }
 
-fn test_parse_second_binary(parse_func : ParseFun, ops : Vec<&str>) {
+fn test_parse_second_binary(parse_func : ParseArithFun, ops : Vec<&str>) {
     for op in &ops {
         let input_str = format!("1 {}233", op);
         let tokens = gen_token!(&input_str);
@@ -131,7 +132,7 @@ fn test_parse_second_binary(parse_func : ParseFun, ops : Vec<&str>) {
     }
 }
 
-fn test_parse_longer_second_binary(parse_func : ParseFun, ops : Vec<&str>) {
+fn test_parse_longer_second_binary(parse_func : ParseArithFun, ops : Vec<&str>) {
     for op in &ops {
         let input_str = format!("1 {}233{} 1", op, op);
         let tokens = gen_token!(&input_str);
@@ -168,4 +169,34 @@ fn test_parse_complex_arith_exp() {
     assert_eq!(bin_exp.to_string(),
         "((Integer(1) + (attr_name * (table_name.attr_name))) - (Integer(2) + Integer(3)))");
     assert_pattern!(it.next(), None);
+}
+
+#[test]
+fn test_cmp_operant_parse() {
+    test_literal!("\"string\"", "string", ValueType::String, CmpOperantExpr::parse);
+    test_literal!("null", "null", ValueType::Null, CmpOperantExpr::parse);
+    test_invalid_tokens(CmpOperantExpr::parse, "*");
+}
+
+type ParseCondFun = fn(&mut TokenIter) -> ParseCondResult;
+
+fn test_parse_cmp(parse_func : ParseCondFun, ops : Vec<&str>) {
+    for op in &ops {
+        let input_str = format!("1 {} 2", op);
+        let tokens = gen_token!(&input_str);
+        assert_eq!(tokens.len(), 3);
+        let mut it = tokens.iter();
+        let exp = parse_func(&mut it);
+        assert_pattern!(exp, Ok(..));
+        let exp = exp.unwrap();
+        assert_eq!(exp.to_string(),
+            format!("(Integer(1) {} Integer(2))", op));
+        assert_pattern!(it.next(), None);
+    }
+}
+
+#[test]
+fn test_cmp() {
+    test_parse_cmp(ConditionExpr::parse_cmp,
+        vec!["<", ">", "<=", ">=", "=", "!=", "is", "is not"]);
 }

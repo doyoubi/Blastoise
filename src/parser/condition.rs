@@ -11,6 +11,7 @@ use super::common::{
     get_next_token,
     consume_next_token,
     consume_next_token_with_type,
+    consume_next_token_with_type_list,
 };
 
 
@@ -94,8 +95,10 @@ fn unary_fmt<T>(operator: &str, operant : &T, f : &mut Formatter) -> fmt::Result
 }
 
 type CondRef = Box<ConditionExpr>;
+pub type ParseCondResult = Result<ConditionExpr, ErrorList>;
 
-enum ConditionExpr {
+#[derive(Debug)]
+pub enum ConditionExpr {
     LogicExpr {
         lhs : CondRef,
         rhs :CondRef,
@@ -103,8 +106,8 @@ enum ConditionExpr {
     },
     NotExpr { operant : CondRef },
     CmpExpr {
-        lhs : ArithRef,
-        rhs : ArithRef,
+        lhs : CmpOperantExpr,
+        rhs : CmpOperantExpr,
         op : CmpOp,
     },
     ValueExpr(bool),
@@ -117,6 +120,25 @@ impl Display for ConditionExpr {
             &ConditionExpr::NotExpr{ref operant} => unary_fmt("not", operant, f),
             &ConditionExpr::CmpExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ConditionExpr::ValueExpr(value) => write!(f, "{}", value),
+        }
+    }
+}
+
+
+type CmpOperantRef = Box<CmpOperantExpr>;
+pub type ParseCmpOperantResult = Result<CmpOperantExpr, ErrorList>;
+
+#[derive(Debug)]
+pub enum CmpOperantExpr {
+    Arith(ArithExpr),
+    ValueExpr{ value : String, value_type : super::common::ValueType },
+}
+
+impl Display for CmpOperantExpr {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        match self {
+            &CmpOperantExpr::Arith(ref arith_exp) => arith_exp.fmt(f),
+            &CmpOperantExpr::ValueExpr{ref value, value_type} => write!(f, "{:?}({})", value_type, value),
         }
     }
 }
@@ -173,6 +195,45 @@ macro_rules! parse_binary {
             exp = binary_exp;
         }
     });
+}
+
+impl ConditionExpr {
+    pub fn parse_cmp(it : &mut TokenIter) -> ParseCondResult {
+        let ops = vec![
+            TokenType::LT,
+            TokenType::GT,
+            TokenType::LE,
+            TokenType::GE,
+            TokenType::EQ,
+            TokenType::NE,
+            TokenType::Is,
+            TokenType::IsNot,
+        ];
+        let lhs = try!(CmpOperantExpr::parse(it));
+        let token = try!(consume_next_token_with_type_list(it, &ops));
+        let rhs = try!(CmpOperantExpr::parse(it));
+        Ok(ConditionExpr::CmpExpr{
+            lhs : lhs,
+            rhs : rhs,
+            op : to_cmp_op(token.token_type),
+        })
+    }
+}
+
+impl CmpOperantExpr {
+    pub fn parse(it : &mut TokenIter) -> ParseCmpOperantResult {
+        let token = try!(get_next_token(it));
+        match token.token_type {
+            TokenType::StringLiteral | TokenType::Null => {
+                it.next();
+                Ok(CmpOperantExpr::ValueExpr{
+                    value : token.value.clone(),
+                    value_type : token_type_to_value_type(token.token_type),
+                })
+            }
+            _ => Ok(CmpOperantExpr::Arith(try!(ArithExpr::parse(it))))
+        }
+    }
 }
 
 impl ArithExpr {

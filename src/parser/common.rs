@@ -58,8 +58,28 @@ pub fn consume_next_token_with_type(it : &mut TokenIter, token_type : TokenType)
     if token_type == token.token_type {
         return Ok(token);
     }
+
     let err_msg = format!("expect token type: {:?}, but got {:?}",
         token_type, token.token_type);
+    let err = Rc::new(CompileError{
+        error_type : CompileErrorType::ParserUnExpectedTokenType,
+        token : token.clone(),
+        error_msg : err_msg,
+    });
+    Err(vec![err])
+}
+
+pub fn consume_next_token_with_type_list(it : &mut TokenIter, type_list : &Vec<TokenType>)
+        -> Result<TokenRef, ErrorList> {
+    let token : TokenRef = match it.next() {
+        Some(token) => (*token).clone(),
+        None => return Err(gen_reach_the_end_err(it)),
+    };
+    if type_list.contains(&token.token_type) {
+        return Ok(token);
+    }
+    let err_msg = format!("expect token type: {:?}, but got {:?}",
+        type_list, token.token_type);
     let err = Rc::new(CompileError{
         error_type : CompileErrorType::ParserUnExpectedTokenType,
         token : token.clone(),
