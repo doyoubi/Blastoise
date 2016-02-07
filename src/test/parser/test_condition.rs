@@ -58,8 +58,6 @@ fn test_single_attribute_name(parse_func : ParseFun) {
 fn test_parse_arith_operant() {
     test_literal!("233", "233", ValueType::Integer);
     test_literal!("233.666", "233.666", ValueType::Float);
-    test_literal!("\"string\"", "string", ValueType::String);
-    test_literal!("null", "null", ValueType::Null);
     test_single_attribute_name(ArithExpr::parse_arith_operant);
     test_invalid_tokens(ArithExpr::parse_arith_operant, "or");
 }
@@ -157,4 +155,17 @@ fn test_parse_binary() {
     test_parse_second_binary(ArithExpr::parse_first_binary, vec!["+", "-"]);
     test_parse_longer_second_binary(ArithExpr::parse_first_binary, vec!["+", "-"]);
     test_invalid_tokens(ArithExpr::parse_second_binary, "*");
+}
+
+#[test]
+fn test_parse_complex_arith_exp() {
+    let tokens = gen_token!("1 + attr_name* table_name.attr_name - (2 + 3)");
+    assert_eq!(tokens.len(), 13);
+    let mut it = tokens.iter();
+    let exp = ArithExpr::parse(&mut it);
+    assert_pattern!(exp, Ok(..));
+    let bin_exp = exp.unwrap();
+    assert_eq!(bin_exp.to_string(),
+        "((Integer(1) + (attr_name * (table_name.attr_name))) - (Integer(2) + Integer(3)))");
+    assert_pattern!(it.next(), None);
 }

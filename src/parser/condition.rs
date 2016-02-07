@@ -149,8 +149,8 @@ impl Display for ArithExpr {
 }
 
 macro_rules! parse_binary {
-    ($iter:expr, $ops:expr, $expr_type:ident :: $parse_func:ident, $binary_pat:ident, $exp_ref:ident, $to_op:ident) => ({
-        let mut exp = try!($expr_type::$parse_func($iter));
+    ($iter:expr, $ops:expr, $expr_type:ident :: $sub_parse_func:ident, $binary_pat:ident, $exp_ref:ident, $to_op:ident) => ({
+        let mut exp = try!($expr_type::$sub_parse_func($iter));
         loop {
             let mut tmp = $iter.clone();
             let token = match consume_next_token(&mut tmp) {
@@ -160,7 +160,7 @@ macro_rules! parse_binary {
             if !$ops.contains(&token.token_type) {
                 return Ok(exp);
             }
-            let rhs = match $expr_type::$parse_func(&mut tmp) {
+            let rhs = match $expr_type::$sub_parse_func(&mut tmp) {
                 Ok(exp) => exp,
                 Err(..) => return Ok(exp),
             };
@@ -182,7 +182,7 @@ impl ArithExpr {
 
     pub fn parse_first_binary(it : &mut TokenIter) -> ParseArithResult {
         let ops = [TokenType::Add, TokenType::Sub];
-        parse_binary!(it, ops, ArithExpr::parse_primitive, BinaryExpr, ArithRef, to_arith_op)
+        parse_binary!(it, ops, ArithExpr::parse_second_binary, BinaryExpr, ArithRef, to_arith_op)
     }
 
     pub fn parse_second_binary(it : &mut TokenIter) -> ParseArithResult {
@@ -195,11 +195,11 @@ impl ArithExpr {
         match token.token_type {
             TokenType::Sub => {
                 it.next();
-                Ok(ArithExpr::MinusExpr{ operant : ArithRef::new(try!(ArithExpr::parse_primitive(it))) })
+                Ok(ArithExpr::MinusExpr{ operant : ArithRef::new(try!(ArithExpr::parse(it))) })
             }
             TokenType::Add => {
                 it.next();
-                Ok(try!(ArithExpr::parse_primitive(it)))
+                Ok(try!(ArithExpr::parse(it)))
             }
             TokenType::OpenBracket => {
                 it.next();
@@ -214,17 +214,13 @@ impl ArithExpr {
     pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::IntegerLiteral
-            | TokenType::FloatLiteral
-            | TokenType::StringLiteral
-            | TokenType::Null
-                => {
-                    it.next();
-                    Ok(ArithExpr::ValueExpr{
-                            value : token.value.clone(),
-                            value_type : token_type_to_value_type(token.token_type),
-                        })
-                }
+            TokenType::IntegerLiteral | TokenType::FloatLiteral => {
+                it.next();
+                Ok(ArithExpr::ValueExpr{
+                        value : token.value.clone(),
+                        value_type : token_type_to_value_type(token.token_type),
+                    })
+            }
             TokenType::Identifier => {
                 Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))
             }

@@ -33,7 +33,7 @@ second_expr ::= arith_primitive [second_operator arith_primitive ...]
 second_operator ::= * | / | %
 
 arith_primitive ::= - arith_expr | + arith_expr | ( arith_expr ) | arith_operant
-arith_operant ::= attribute | literal
+arith_operant ::= attribute | int | float
 literal ::= int | float | string | null
 
 
