@@ -9,11 +9,12 @@ use super::attribute::AttributeExpr;
 use super::common::{
     align_iter,
     get_next_token,
+    consume_next_token,
     consume_next_token_with_type,
 };
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum LogicOp {
     Or,
     And,
@@ -29,7 +30,7 @@ impl Display for LogicOp {
 }
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CmpOp {
     LT,
     GT,
@@ -57,7 +58,7 @@ impl Display for CmpOp {
 }
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum ArithOp {
     Add,
     Sub,
@@ -147,9 +148,41 @@ impl Display for ArithExpr {
     }
 }
 
+macro_rules! parse_binary {
+    ($iter:expr, $ops:expr, $expr_type:ident :: $parse_func:ident, $binary_pat:ident, $exp_ref:ident, $to_op:ident) => ({
+        let mut exp = try!($expr_type::$parse_func($iter));
+        loop {
+            let mut tmp = $iter.clone();
+            let token = match consume_next_token(&mut tmp) {
+                Ok(token) => token,
+                Err(..) => return Ok(exp),
+            };
+            if !$ops.contains(&token.token_type) {
+                return Ok(exp);
+            }
+            let rhs = match $expr_type::$parse_func(&mut tmp) {
+                Ok(exp) => exp,
+                Err(..) => return Ok(exp),
+            };
+            align_iter($iter, &mut tmp);
+            let binary_exp = $expr_type::$binary_pat{
+                lhs : $exp_ref::new(exp),
+                rhs : $exp_ref::new(rhs),
+                op : $to_op(token.token_type),
+            };
+            exp = binary_exp;
+        }
+    });
+}
+
 impl ArithExpr {
     pub fn parse(it : &mut TokenIter) -> ParseArithResult {
         ArithExpr::parse_primitive(it) // not complete yet
+    }
+
+    pub fn parse_second_binary(it : &mut TokenIter) -> ParseArithResult {
+        let ops = [TokenType::Star, TokenType::Div, TokenType::Mod];
+        parse_binary!(it, ops, ArithExpr::parse_primitive, BinaryExpr, ArithRef, to_arith_op)
     }
 
     pub fn parse_primitive(it : &mut TokenIter) -> ParseArithResult {
@@ -212,6 +245,35 @@ fn token_type_to_value_type(t : TokenType) -> ValueType {
     }
 }
 
-// fn parse_binary(it : &mut TokenIter) -> ParseArithResult {
-//     Err(vec![])
-// }
+fn to_arith_op(token_type : TokenType) -> ArithOp {
+    match token_type {
+        TokenType::Add => ArithOp::Add,
+        TokenType::Sub => ArithOp::Sub,
+        TokenType::Star => ArithOp::Mul,
+        TokenType::Div => ArithOp::Div,
+        TokenType::Mod => ArithOp::Mod,
+        _ => panic!("unexpected token type: {:?}", token_type),
+    }
+}
+
+fn to_logic_op(token_type : TokenType) -> LogicOp {
+    match token_type {
+        TokenType::Or => LogicOp::Or,
+        TokenType::And => LogicOp::And,
+        _ => panic!("unexpected token type: {:?}", token_type),
+    }
+}
+
+fn to_cmp_op(token_type : TokenType) -> CmpOp {
+    match token_type {
+        TokenType::LT => CmpOp::LT,
+        TokenType::GT => CmpOp::GT,
+        TokenType::LE => CmpOp::LE,
+        TokenType::GE => CmpOp::GE,
+        TokenType::EQ => CmpOp::EQ,
+        TokenType::NE => CmpOp::NE,
+        TokenType::Is => CmpOp::Is,
+        TokenType::IsNot => CmpOp::IsNot,
+        _ => panic!("unexpected token type: {:?}", token_type),
+    }
+}

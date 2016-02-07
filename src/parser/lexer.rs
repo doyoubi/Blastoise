@@ -49,6 +49,7 @@ pub enum TokenType {
     Or,           // or
     Not,          // not
     Is,           // is
+    IsNot,        // is not
     UnKnown,
 }
 
@@ -122,6 +123,14 @@ impl TokenLine {
                         return;
                     }
                 };
+            }
+            if let TokenType::Not = token.token_type {
+                if let Some(TokenType::Is) = line.tokens.last().map(|token| token.token_type) {
+                    token.token_type = TokenType::IsNot;
+                    token.value = "is not".to_string();
+                    token.column = line.tokens.last().unwrap().column;
+                    line.tokens.pop();
+                }
             }
             line.tokens.push(Rc::new(token));
         };

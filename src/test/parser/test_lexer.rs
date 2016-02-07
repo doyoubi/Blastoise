@@ -181,3 +181,11 @@ fn test_operator_token() {
     assert_token_eq!(h, 16, "!=", TokenType::NE);
     assert_token_eq!(h, 18, ".", TokenType::GetMember);
 }
+
+#[test]
+fn test_is_not() {
+    let mut h = TokenTestHelper::new("is not");
+    assert_token_len!(h, 1);
+    assert_error_len!(h, 0);
+    assert_token_eq!(h, 1, "is not", TokenType::IsNot);
+}

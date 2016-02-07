@@ -117,3 +117,23 @@ fn test_parse_primitive() {
     test_bracket(ArithExpr::parse_primitive);
     test_single_attribute_name(ArithExpr::parse_primitive);
 }
+
+fn test_parse_second_binary(parse_func : ParseFun) {
+    for op in &["*", "/", "%"] {
+        let input_str = format!("1 {}1", op);
+        let tokens = gen_token!(&input_str);
+        assert_eq!(tokens.len(), 3);
+        let mut it = tokens.iter();
+        let bin_exp = parse_func(&mut it);
+        assert_pattern!(bin_exp, Ok(..));
+        let bin_exp = bin_exp.unwrap();
+        assert_eq!(bin_exp.to_string(),
+            format!("(Integer(1) {} Integer(1))", op));
+        assert_pattern!(it.next(), None);
+    }
+}
+
+#[test]
+fn test_parse_binary() {
+    test_parse_second_binary(ArithExpr::parse_second_binary);
+}
