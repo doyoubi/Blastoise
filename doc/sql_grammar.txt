@@ -19,7 +19,7 @@ relation ::= table_name | select_statement
 condition ::= or_expr
 or_expr ::= and_expr [OR and_expr ...]
 and_expr ::= cond_primitive [AND cond_primitive ...]
-cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr | true | false
+cond_primitive ::= not cond_primitive | ( condition ) | cmp_expr
 
 cmp_expr ::= cmp_operant cmp_operator cmp_operant
 cmp_operant ::= arith_expr | string | null

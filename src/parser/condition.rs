@@ -110,7 +110,6 @@ pub enum ConditionExpr {
         rhs : CmpOperantExpr,
         op : CmpOp,
     },
-    ValueExpr(bool),
 }
 
 impl Display for ConditionExpr {
@@ -119,7 +118,6 @@ impl Display for ConditionExpr {
             &ConditionExpr::LogicExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ConditionExpr::NotExpr{ref operant} => unary_fmt("not", operant, f),
             &ConditionExpr::CmpExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
-            &ConditionExpr::ValueExpr(value) => write!(f, "{}", value),
         }
     }
 }
@@ -198,6 +196,27 @@ macro_rules! parse_binary {
 }
 
 impl ConditionExpr {
+    pub fn parse(it : &mut TokenIter) ->ParseCondResult {
+        ConditionExpr::parse_primitive(it)
+    }
+
+    pub fn parse_primitive(it : &mut TokenIter) -> ParseCondResult {
+        let token = try!(get_next_token(it));
+        match token.token_type {
+            TokenType::Not => {
+                it.next();
+                Ok(ConditionExpr::NotExpr { operant : CondRef::new(try!(ConditionExpr::parse(it))) })
+            }
+            TokenType::OpenBracket => {
+                it.next();
+                let cond_exp = try!(ConditionExpr::parse(it));
+                try!(consume_next_token_with_type(it, TokenType::CloseBracket));
+                Ok(cond_exp)
+            }
+            _ => Ok(try!(ConditionExpr::parse_cmp(it))),
+        }
+    }
+
     pub fn parse_cmp(it : &mut TokenIter) -> ParseCondResult {
         let ops = vec![
             TokenType::LT,
