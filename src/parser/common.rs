@@ -49,9 +49,9 @@ fn gen_reach_the_end_err(it : &TokenIter) -> ErrorList {
     vec![err]
 }
 
-pub fn get_next_token_with_type(it : &TokenIter, token_type : TokenType)
+pub fn consume_next_token_with_type(it : &mut TokenIter, token_type : TokenType)
         -> Result<TokenRef, ErrorList> {
-    let token : TokenRef = match it.clone().peekable().peek() {
+    let token : TokenRef = match it.next() {
         Some(token) => (*token).clone(),
         None => return Err(gen_reach_the_end_err_with_type(it, token_type)),
     };
@@ -72,17 +72,6 @@ pub fn get_next_token(it : &TokenIter) -> Result<TokenRef, ErrorList> {
     match it.clone().peekable().peek() {
         Some(token) => Ok((*token).clone()),
         None => Err(gen_reach_the_end_err(it)),
-    }
-}
-
-pub fn consume_next_token_with_type(it : &mut TokenIter, token_type : TokenType)
-        -> Result<TokenRef, ErrorList> {
-    match get_next_token_with_type(it, token_type) {
-        Ok(token) => {
-            it.next();
-            Ok(token)
-        }
-        errs => errs,
     }
 }
 
@@ -149,14 +138,6 @@ macro_rules! try_parse {
     ($type_name:ident :: $parse_func:ident, $iter:expr, $( $add_args:expr ),*) => ({
         let mut tmp = $iter.clone();
         try_parse_helper!($type_name::$parse_func(&mut tmp, $($add_args),* ), $iter, tmp)
-    });
-}
-
-macro_rules! try_parse_unary_op_helper {
-    ($type_name:ident :: $parse_func:ident, $iter:expr) => ({
-        let mut tmp = $iter.clone();
-        tmp.next();
-        try_parse_helper!($type_name::$parse_func(&mut tmp), $iter, tmp)
     });
 }
 

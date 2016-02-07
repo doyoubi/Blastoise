@@ -45,7 +45,6 @@ fn test_invalid_tokens(parse_func : ParseFun) {
     let ref errs = attr_exp.unwrap_err();
     let ref err = errs[0];
     assert_eq!(err.error_type, CompileErrorType::ParserUnExpectedTokenType);
-    assert_eq!(it.len(), 1);
 }
 
 #[test]

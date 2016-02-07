@@ -188,19 +188,21 @@ impl ArithExpr {
     pub fn parse_primitive(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::Sub => Ok(ArithExpr::MinusExpr{ operant : ArithRef::new(
-                    try_parse_unary_op_helper!(ArithExpr::parse_primitive, it)
-                )}),
-            TokenType::Add => Ok(try_parse_unary_op_helper!(ArithExpr::parse_primitive, it)),
+            TokenType::Sub => {
+                it.next();
+                Ok(ArithExpr::MinusExpr{ operant : ArithRef::new(try!(ArithExpr::parse_primitive(it))) })
+            }
+            TokenType::Add => {
+                it.next();
+                Ok(try!(ArithExpr::parse_primitive(it)))
+            }
             TokenType::OpenBracket => {
-                let mut tmp = it.clone();
-                tmp.next();
-                let arith_exp = try!(ArithExpr::parse(&mut tmp));
-                try!(consume_next_token_with_type(&mut tmp, TokenType::CloseBracket));
-                align_iter(it, &mut tmp);
+                it.next();
+                let arith_exp = try!(ArithExpr::parse(it));
+                try!(consume_next_token_with_type(it, TokenType::CloseBracket));
                 Ok(arith_exp)
             }
-            _ => Ok(try_parse!(ArithExpr::parse_arith_operant, it)),
+            _ => Ok(try!(ArithExpr::parse_arith_operant(it))),
         }
     }
 

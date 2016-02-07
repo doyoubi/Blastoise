@@ -51,7 +51,7 @@ impl AttributeExpr {
     }
 
     pub fn parse_table_attr(it : &mut TokenIter) -> ParseAttrResult  {
-        let token = try_parse!(consume_next_token_with_type, it, TokenType::Identifier);
+        let token = try!(consume_next_token_with_type(it, TokenType::Identifier));
         let mut look_ahead = it.clone();
         let next_token_type = look_ahead.next().map(|tk| tk.token_type);
         match next_token_type {
@@ -65,13 +65,11 @@ impl AttributeExpr {
     }
 
     pub fn parse_aggre_func(it : &mut TokenIter) -> ParseAttrResult {
-        let mut tmp = it.clone();
-        let func_token = try!(consume_next_token_with_type(&mut tmp, TokenType::Identifier));
-        try!(consume_next_token_with_type(&mut tmp, TokenType::OpenBracket));
-        let table_attr = try!(AttributeExpr::parse_table_attr(&mut tmp));
+        let func_token = try!(consume_next_token_with_type(it, TokenType::Identifier));
+        try!(consume_next_token_with_type(it, TokenType::OpenBracket));
+        let table_attr = try!(AttributeExpr::parse_table_attr(it));
         let (table_name, attr_name) = extract!(table_attr, AttributeExpr::TableAttr{ table, attr }, (table, attr));
-        try!(consume_next_token_with_type(&mut tmp, TokenType::CloseBracket));
-        align_iter(it, &mut tmp);
+        try!(consume_next_token_with_type(it, TokenType::CloseBracket));
         Ok(AttributeExpr::AggreFuncCall{
             func : func_token.value.clone(),
             table : table_name,

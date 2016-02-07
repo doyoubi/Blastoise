@@ -37,7 +37,6 @@ fn test_invalid_tokens(parse_func : ParseFun, input_str : &str) {
     let ref errs = attr_exp.unwrap_err();
     let ref err = errs[0];
     assert_eq!(err.error_type, CompileErrorType::ParserUnExpectedTokenType);
-    assert_eq!(it.len(), 1);
 }
 
 fn test_single_attribute_name(parse_func : ParseFun) {
@@ -136,4 +135,5 @@ fn test_parse_second_binary(parse_func : ParseFun) {
 #[test]
 fn test_parse_binary() {
     test_parse_second_binary(ArithExpr::parse_second_binary);
+    test_invalid_tokens(ArithExpr::parse_second_binary, "*");
 }
