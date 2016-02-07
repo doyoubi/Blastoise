@@ -1,6 +1,6 @@
 use std::vec::Vec;
 use std::option::Option::{Some, None};
-use ::parser::common::Attribute;
+use ::parser::common::AttributeExpr;
 use ::parser::common::ConditionExpr;
 
 struct SelectStatement {
@@ -13,7 +13,7 @@ struct SelectStatement {
 
 enum SelectExpr {
     AllAttribute,
-    AttributeList(Vec<String>),
+    AttrList(Vec<String>),
 }
 
 enum Relation {

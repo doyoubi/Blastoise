@@ -3,6 +3,7 @@ use std::fmt::{Formatter, Display};
 use std::option::Option::{Some, None};
 use std::result::Result;
 use std::result::Result::{Ok, Err};
+use std::vec::Vec;
 use super::lexer::{TokenIter, TokenType};
 use super::compile_error::ErrorList;
 use super::common::{
@@ -12,6 +13,7 @@ use super::common::{
 
 
 pub type ParseAttrResult = Result<AttributeExpr, ErrorList>;
+pub type AttributeList = Vec<AttributeExpr>;
 
 #[derive(Debug)]
 pub enum AttributeExpr {
@@ -43,6 +45,19 @@ impl Display for AttributeExpr {
 }
 
 impl AttributeExpr {
+    pub fn parse_list(it : &mut TokenIter) -> Result<AttributeList, ErrorList> {
+        let mut attrs = AttributeList::new();
+        attrs.push(try!(AttributeExpr::parse(it)));
+        loop {
+            let mut tmp = it.clone();
+            if let Err(..) = consume_next_token_with_type(&mut tmp, TokenType::Comma) {
+                return Ok(attrs);
+            }
+            attrs.push(try!(AttributeExpr::parse(&mut tmp)));
+            align_iter(it, &mut tmp);
+        }
+    }
+
     pub fn parse(it : &mut TokenIter) -> ParseAttrResult {
         or_parse_combine!(it,
             AttributeExpr::parse_aggre_func,
