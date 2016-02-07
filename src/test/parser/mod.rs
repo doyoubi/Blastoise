@@ -11,3 +11,6 @@ mod test_condition;
 #[allow(dead_code)]
 #[allow(unused_imports)]  // lint bug
 mod test_attribute;
+
+#[allow(unused_imports)]  // lint bug
+mod test_statement;

@@ -103,7 +103,7 @@ fn test_attribute_parse() {
     test_invalid_tokens(AttributeExpr::parse);
 }
 
-fn test_attr_list_helper(exp_list : AttributeList, correct_exp_list: Vec<(Option<&str>, Option<&str>, &str)>) {
+pub fn test_attr_list_helper(exp_list : AttributeList, correct_exp_list: Vec<(Option<&str>, Option<&str>, &str)>) {
     assert_eq!(exp_list.len(), correct_exp_list.len());
     let f = |s : &str| s.to_string();
     let correct_exp_list : Vec<_> = correct_exp_list.iter().map(

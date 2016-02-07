@@ -8,3 +8,5 @@ pub mod common;
 pub mod attribute;
 #[allow(dead_code)]
 pub mod condition;
+
+pub mod select;
