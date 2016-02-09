@@ -7,7 +7,6 @@ use super::attribute::{AttributeExpr, AttributeList};
 use super::condition::ConditionExpr;
 use super::compile_error::ErrorList;
 use super::common::{
-    align_iter,
     get_next_token,
     consume_next_token_with_type,
     check_parse_to_end,
@@ -15,6 +14,7 @@ use super::common::{
     exp_list_to_string,
     concat_format,
     concat_error_list,
+    parse_list_helper,
 };
 
 
@@ -116,16 +116,7 @@ impl Relation {
         Relation::parse_list(it)
     }
     pub fn parse_list(it : &mut TokenIter) -> Result<RelationList, ErrorList> {
-        let mut relation_list = RelationList::new();
-        relation_list.push(try!(Relation::parse_relation(it)));
-        loop {
-            let mut tmp = it.clone();
-            if let Err(..) = consume_next_token_with_type(&mut tmp, TokenType::Comma) {
-                return Ok(relation_list);
-            }
-            relation_list.push(try!(Relation::parse_relation(&mut tmp)));
-            align_iter(it, &mut tmp);
-        }
+        parse_list_helper(Relation::parse_relation, it)
     }
     pub fn parse_relation(it : &mut TokenIter) -> Result<Relation, ErrorList> {
         let token = try!(get_next_token(it));

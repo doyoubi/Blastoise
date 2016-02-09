@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Formatter, Display};
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
-use super::common::ValueType;
+use super::common::{ValueType, ValueExpr};
 use super::lexer::{TokenIter, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList};
 use super::attribute::AttributeExpr;
@@ -129,14 +129,14 @@ pub type ParseCmpOperantResult = Result<CmpOperantExpr, ErrorList>;
 #[derive(Debug)]
 pub enum CmpOperantExpr {
     Arith(ArithExpr),
-    ValueExpr{ value : String, value_type : super::common::ValueType },
+    Value(ValueExpr),
 }
 
 impl Display for CmpOperantExpr {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         match self {
             &CmpOperantExpr::Arith(ref arith_exp) => arith_exp.fmt(f),
-            &CmpOperantExpr::ValueExpr{ref value, value_type} => write!(f, "{:?}({})", value_type, value),
+            &CmpOperantExpr::Value(ValueExpr{ref value, value_type}) => write!(f, "{:?}({})", value_type, value),
         }
     }
 }
@@ -153,7 +153,7 @@ pub enum ArithExpr {
         op : ArithOp,
     },
     MinusExpr { operant : ArithRef },
-    ValueExpr { value : String, value_type : super::common::ValueType },
+    Value(ValueExpr),
     Attr(AttributeExpr),
 }
 
@@ -162,7 +162,7 @@ impl Display for ArithExpr {
         match self {
             &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
-            &ArithExpr::ValueExpr{ref value, value_type} => write!(f, "{:?}({})", value_type, value),
+            &ArithExpr::Value(ValueExpr{ref value, value_type}) => write!(f, "{:?}({})", value_type, value),
             &ArithExpr::Attr(ref attribute) => attribute.fmt(f),
         }
     }
@@ -255,10 +255,10 @@ impl CmpOperantExpr {
         match token.token_type {
             TokenType::StringLiteral | TokenType::Null => {
                 it.next();
-                Ok(CmpOperantExpr::ValueExpr{
+                Ok(CmpOperantExpr::Value(ValueExpr{
                     value : token.value.clone(),
                     value_type : token_type_to_value_type(token.token_type),
-                })
+                }))
             }
             _ => Ok(CmpOperantExpr::Arith(try!(ArithExpr::parse(it))))
         }
@@ -306,10 +306,10 @@ impl ArithExpr {
         match token.token_type {
             TokenType::IntegerLiteral | TokenType::FloatLiteral => {
                 it.next();
-                Ok(ArithExpr::ValueExpr{
-                        value : token.value.clone(),
-                        value_type : token_type_to_value_type(token.token_type),
-                    })
+                Ok(ArithExpr::Value(ValueExpr{
+                    value : token.value.clone(),
+                    value_type : token_type_to_value_type(token.token_type),
+                }))
             }
             TokenType::Identifier => {
                 Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))

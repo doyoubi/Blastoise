@@ -4,7 +4,7 @@ use std::vec::Vec;
 use std::fmt::Debug;
 use ::parser::lexer::TokenIter;
 use ::parser::condition::{ArithExpr, ParseArithResult, CmpOperantExpr, ParseCondResult, ConditionExpr};
-use ::parser::common::ValueType;
+use ::parser::common::{ValueType, ValueExpr};
 use ::parser::compile_error::{CompileErrorType, ErrorList};
 use ::parser::attribute::AttributeExpr;
 
@@ -20,7 +20,7 @@ macro_rules! test_literal {
         assert_eq!(arith_exp.to_string(),
             format!("{:?}({})", $token_type, $value));
         let (value, value_type) = extract!(
-            arith_exp, $expr_type::ValueExpr{ value, value_type }, (value, value_type));
+            arith_exp, $expr_type::Value(ValueExpr{ value, value_type }), (value, value_type));
         assert_eq!(value, $value);
         assert_eq!(value_type, $token_type);
         assert_pattern!(it.next(), None);
@@ -73,7 +73,7 @@ fn test_minus_expr(parse_func : ParseArithFun) {
     assert_eq!(minus_exp.to_string(), "(- Integer(1))");
     let inner_exp = extract!(minus_exp, ArithExpr::MinusExpr{operant}, operant);
     let (value, value_type) = extract!(
-        *inner_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
+        *inner_exp, ArithExpr::Value(ValueExpr{ref value, value_type}), (value.clone(), value_type));
     assert_eq!(value, "1");
     assert_pattern!(value_type, ValueType::Integer);
     assert_pattern!(it.next(), None);
@@ -88,7 +88,7 @@ fn test_plus_expr(parse_func : ParseArithFun) {
     let value_exp = value_exp.unwrap();
     assert_eq!(value_exp.to_string(), "Integer(1)");
     let (value, value_type) = extract!(
-        value_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
+        value_exp, ArithExpr::Value(ValueExpr{ref value, value_type}), (value.clone(), value_type));
     assert_eq!(value, "1".to_string());
     assert_pattern!(value_type, ValueType::Integer);
     assert_pattern!(it.next(), None);
@@ -103,7 +103,7 @@ fn test_bracket(parse_func : ParseArithFun) {
     let value_exp = value_exp.unwrap();
     assert_eq!(value_exp.to_string(), "Integer(1)");
     let (value, value_type) = extract!(
-        value_exp, ArithExpr::ValueExpr{ref value, value_type}, (value.clone(), value_type));
+        value_exp, ArithExpr::Value(ValueExpr{ref value, value_type}), (value.clone(), value_type));
     assert_eq!(value, "1".to_string());
     assert_pattern!(value_type, ValueType::Integer);
     assert_pattern!(it.next(), None);

@@ -15,6 +15,12 @@ pub enum ValueType {
     Null,
 }
 
+#[derive(Debug)]
+pub struct ValueExpr {
+    pub value : String,
+    pub value_type : ValueType,
+}
+
 fn gen_end_token(it : &TokenIter) -> TokenRef {
     let mut it = it.clone();
     match it.next_back() {
@@ -251,5 +257,20 @@ pub fn concat_format<Type : Display>(s : String, additional : &str, obj : &Optio
     match obj {
         &Some(ref obj) => format!("{} {}{}", s, additional, obj),
         &None => s,
+    }
+}
+
+pub fn parse_list_helper<Expr>(parse_func : fn(it : &mut TokenIter) -> Result<Expr, ErrorList>,
+        it : &mut TokenIter) -> Result<Vec<Expr>, ErrorList> {
+    let mut exp_list = vec![];
+    exp_list.push(try!(parse_func(it)));
+    loop {
+        let mut tmp = it.clone();
+        if let Err(..) = ::parser::common::consume_next_token_with_type(
+                &mut tmp, ::parser::lexer::TokenType::Comma) {
+            return Ok(exp_list);
+        }
+        exp_list.push(try!(parse_func(&mut tmp)));
+        align_iter(it, &mut tmp);
     }
 }

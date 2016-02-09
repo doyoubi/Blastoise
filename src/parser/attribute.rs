@@ -9,6 +9,7 @@ use super::compile_error::ErrorList;
 use super::common::{
     consume_next_token_with_type,
     align_iter,
+    parse_list_helper,
 };
 
 
@@ -46,16 +47,7 @@ impl Display for AttributeExpr {
 
 impl AttributeExpr {
     pub fn parse_list(it : &mut TokenIter) -> Result<AttributeList, ErrorList> {
-        let mut attrs = AttributeList::new();
-        attrs.push(try!(AttributeExpr::parse(it)));
-        loop {
-            let mut tmp = it.clone();
-            if let Err(..) = consume_next_token_with_type(&mut tmp, TokenType::Comma) {
-                return Ok(attrs);
-            }
-            attrs.push(try!(AttributeExpr::parse(&mut tmp)));
-            align_iter(it, &mut tmp);
-        }
+        parse_list_helper(AttributeExpr::parse, it)
     }
 
     pub fn parse(it : &mut TokenIter) -> ParseAttrResult {
