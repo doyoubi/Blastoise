@@ -44,7 +44,7 @@ insert_statement ::= INSERT table_name
 # update
 update_statement ::= UPDATE table_name
                      SET assignment_list
-                     WHERE condition
+                     [ WHERE condition ]
 assignment_list ::= assignment [, assignment ...]
 assignment ::= attribute_name = literal
 

@@ -11,3 +11,5 @@ pub mod condition;
 
 #[allow(dead_code)]
 pub mod select;
+#[allow(dead_code)]
+pub mod update;

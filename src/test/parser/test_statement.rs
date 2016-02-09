@@ -1,6 +1,7 @@
 use ::parser::common::exp_list_to_string;
 use ::parser::select::{SelectExpr, Relation, GroupbyHaving, SelectStatement, RelationList};
 use ::parser::attribute::AttributeExpr;
+use ::parser::update::{AssignExpr, UpdateStatement};
 
 #[test]
 fn test_parse_select_expr() {
@@ -125,5 +126,49 @@ fn test_parse_select_statement() {
         let select = SelectStatement::parse(&mut it);
         let select = extract!(select, Ok(select), select);
         assert_eq!(format!("{}", select), "select attr from huang order by doyoubi");
+    }
+}
+
+#[test]
+fn test_parse_assign() {
+    let tokens = gen_token!("abc = 1");
+    assert_eq!(tokens.len(), 3);
+    let mut it = tokens.iter();
+    let assign = AssignExpr::parse(&mut it);
+    let assign = extract!(assign, Ok(assign), assign);
+    assert_eq!(exp_list_to_string(&assign), "(abc = Integer(1))");
+    assert_pattern!(it.next(), None);
+}
+
+#[test]
+fn test_parse_assign_list() {
+    let tokens = gen_token!("a = 1, b = 2");
+    assert_eq!(tokens.len(), 7);
+    let mut it = tokens.iter();
+    let list = AssignExpr::parse(&mut it);
+    let list = extract!(list, Ok(list), list);
+    assert_eq!(exp_list_to_string(&list), "(a = Integer(1)), (b = Integer(2))");
+    assert_pattern!(it.next(), None);
+}
+
+#[test]
+fn test_udpate_statement_parse() {
+    {
+        let tokens = gen_token!("update tab set a = 1");
+        assert_eq!(tokens.len(), 6);
+        let mut it = tokens.iter();
+        let update = UpdateStatement::parse(&mut it);
+        let update = extract!(update, Ok(update), update);
+        assert_eq!(format!("{}", update),
+            "update tab set (a = Integer(1))");
+    }
+    {
+        let tokens = gen_token!("update tab set a = 1, b = \"string\" where a > 1");
+        assert_eq!(tokens.len(), 14);
+        let mut it = tokens.iter();
+        let update = UpdateStatement::parse(&mut it);
+        let update = extract!(update, Ok(update), update);
+        assert_eq!(format!("{}", update),
+            "update tab set (a = Integer(1)), (b = String(string)) where (a > Integer(1))");
     }
 }
