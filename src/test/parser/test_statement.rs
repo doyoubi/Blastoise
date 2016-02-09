@@ -2,6 +2,7 @@ use ::parser::common::exp_list_to_string;
 use ::parser::select::{SelectExpr, Relation, GroupbyHaving, SelectStatement, RelationList};
 use ::parser::attribute::AttributeExpr;
 use ::parser::update::{AssignExpr, UpdateStatement};
+use ::parser::insert::InsertStatement;
 
 #[test]
 fn test_parse_select_expr() {
@@ -102,6 +103,7 @@ fn test_parse_select_statement() {
         assert_eq!(format!("{}", select),
             "select sum(employee) from table_name where ((tab.money) > Integer(0)) \
             group by (huang.guangxing) having ((dept.number) > Integer(1)) order by doyoubi");
+        assert_pattern!(it.next(), None);
     }
     {
         let tokens = gen_token!("select tab.attr from huang group by doyoubi");
@@ -110,6 +112,7 @@ fn test_parse_select_statement() {
         let select = SelectStatement::parse(&mut it);
         let select = extract!(select, Ok(select), select);
         assert_eq!(format!("{}", select), "select (tab.attr) from huang group by doyoubi");
+        assert_pattern!(it.next(), None);
     }
     {
         let tokens = gen_token!("select attr from huang where doyoubi is not null");
@@ -118,6 +121,7 @@ fn test_parse_select_statement() {
         let select = SelectStatement::parse(&mut it);
         let select = extract!(select, Ok(select), select);
         assert_eq!(format!("{}", select), "select attr from huang where (doyoubi is not Null(null))");
+        assert_pattern!(it.next(), None);
     }
     {
         let tokens = gen_token!("select attr from huang order by doyoubi");
@@ -126,6 +130,7 @@ fn test_parse_select_statement() {
         let select = SelectStatement::parse(&mut it);
         let select = extract!(select, Ok(select), select);
         assert_eq!(format!("{}", select), "select attr from huang order by doyoubi");
+        assert_pattern!(it.next(), None);
     }
 }
 
@@ -161,6 +166,7 @@ fn test_udpate_statement_parse() {
         let update = extract!(update, Ok(update), update);
         assert_eq!(format!("{}", update),
             "update tab set (a = Integer(1))");
+        assert_pattern!(it.next(), None);
     }
     {
         let tokens = gen_token!("update tab set a = 1, b = \"string\" where a > 1");
@@ -170,5 +176,30 @@ fn test_udpate_statement_parse() {
         let update = extract!(update, Ok(update), update);
         assert_eq!(format!("{}", update),
             "update tab set (a = Integer(1)), (b = String(string)) where (a > Integer(1))");
+        assert_pattern!(it.next(), None);
+    }
+}
+
+#[test]
+fn test_insert_statement_parse() {
+    {
+        let tokens = gen_token!("insert tab values(1)");
+        assert_eq!(tokens.len(), 6);
+        let mut it = tokens.iter();
+        let insert = InsertStatement::parse(&mut it);
+        let insert = extract!(insert, Ok(insert), insert);
+        assert_eq!(format!("{}", insert),
+            "insert tab values(Integer(1))");
+        assert_pattern!(it.next(), None);
+    }
+    {
+        let tokens = gen_token!("insert tab values(1, null)");
+        assert_eq!(tokens.len(), 8);
+        let mut it = tokens.iter();
+        let insert = InsertStatement::parse(&mut it);
+        let insert = extract!(insert, Ok(insert), insert);
+        assert_eq!(format!("{}", insert),
+            "insert tab values(Integer(1), Null(null))");
+        assert_pattern!(it.next(), None);
     }
 }

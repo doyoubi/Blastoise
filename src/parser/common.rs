@@ -16,6 +16,8 @@ pub enum ValueType {
     Null,
 }
 
+pub type ValueList = Vec<ValueExpr>;
+
 #[derive(Debug)]
 pub struct ValueExpr {
     pub value : String,
