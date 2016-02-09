@@ -1,4 +1,5 @@
-use std::fmt::Display;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
 use std::iter::ExactSizeIterator;
@@ -19,6 +20,38 @@ pub enum ValueType {
 pub struct ValueExpr {
     pub value : String,
     pub value_type : ValueType,
+}
+
+impl Display for ValueExpr {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        write!(f, "{:?}({})", self.value_type, self.value)
+    }
+}
+
+impl ValueExpr {
+    pub fn parse(it : &mut TokenIter) -> Result<ValueExpr, ErrorList> {
+        let literals = vec![
+            TokenType::IntegerLiteral,
+            TokenType::FloatLiteral,
+            TokenType::StringLiteral,
+            TokenType::Null,
+        ];
+        let token = try!(consume_next_token_with_type_list(it, &literals));
+        Ok(ValueExpr{
+            value : token.value.clone(),
+            value_type : token_type_to_value_type(token.token_type),
+        })
+    }
+}
+
+fn token_type_to_value_type(t : TokenType) -> ValueType {
+    match t {
+        TokenType::IntegerLiteral => ValueType::Integer,
+        TokenType::FloatLiteral => ValueType::Float,
+        TokenType::StringLiteral => ValueType::String,
+        TokenType::Null => ValueType::Null,
+        _ => panic!("unexpected TokenType: {:?}", t),
+    }
 }
 
 fn gen_end_token(it : &TokenIter) -> TokenRef {

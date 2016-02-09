@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Formatter, Display};
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
-use super::common::{ValueType, ValueExpr};
+use super::common::ValueExpr;
 use super::lexer::{TokenIter, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList};
 use super::attribute::AttributeExpr;
@@ -136,7 +136,7 @@ impl Display for CmpOperantExpr {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         match self {
             &CmpOperantExpr::Arith(ref arith_exp) => arith_exp.fmt(f),
-            &CmpOperantExpr::Value(ValueExpr{ref value, value_type}) => write!(f, "{:?}({})", value_type, value),
+            &CmpOperantExpr::Value(ref value) => write!(f, "{}", value),
         }
     }
 }
@@ -162,7 +162,7 @@ impl Display for ArithExpr {
         match self {
             &ArithExpr::BinaryExpr{ref lhs, ref rhs, op} => binary_fmt(op, lhs, rhs, f),
             &ArithExpr::MinusExpr{ref operant} => unary_fmt("-", operant, f),
-            &ArithExpr::Value(ValueExpr{ref value, value_type}) => write!(f, "{:?}({})", value_type, value),
+            &ArithExpr::Value(ref value) => write!(f, "{}", value),
             &ArithExpr::Attr(ref attribute) => attribute.fmt(f),
         }
     }
@@ -253,14 +253,9 @@ impl CmpOperantExpr {
     pub fn parse(it : &mut TokenIter) -> ParseCmpOperantResult {
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::StringLiteral | TokenType::Null => {
-                it.next();
-                Ok(CmpOperantExpr::Value(ValueExpr{
-                    value : token.value.clone(),
-                    value_type : token_type_to_value_type(token.token_type),
-                }))
-            }
-            _ => Ok(CmpOperantExpr::Arith(try!(ArithExpr::parse(it))))
+            TokenType::StringLiteral | TokenType::Null =>
+                Ok(CmpOperantExpr::Value(try!(ValueExpr::parse(it)))),
+            _ => Ok(CmpOperantExpr::Arith(try!(ArithExpr::parse(it)))),
         }
     }
 }
@@ -304,16 +299,10 @@ impl ArithExpr {
     pub fn parse_arith_operant(it : &mut TokenIter) -> ParseArithResult {
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::IntegerLiteral | TokenType::FloatLiteral => {
-                it.next();
-                Ok(ArithExpr::Value(ValueExpr{
-                    value : token.value.clone(),
-                    value_type : token_type_to_value_type(token.token_type),
-                }))
-            }
-            TokenType::Identifier => {
-                Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it))))
-            }
+            TokenType::IntegerLiteral | TokenType::FloatLiteral =>
+                Ok(ArithExpr::Value(try!(ValueExpr::parse(it)))),
+            TokenType::Identifier =>
+                Ok(ArithExpr::Attr(try!(AttributeExpr::parse(it)))),
             _ => {
                 let err_msg = format!("unexpected tokentype: {:?}, expect Literal or Identifier",
                     token.token_type);
@@ -325,16 +314,6 @@ impl ArithExpr {
                 Err(vec![e])
             }
         }
-    }
-}
-
-fn token_type_to_value_type(t : TokenType) -> ValueType {
-    match t {
-        TokenType::IntegerLiteral => ValueType::Integer,
-        TokenType::FloatLiteral => ValueType::Float,
-        TokenType::StringLiteral => ValueType::String,
-        TokenType::Null => ValueType::Null,
-        _ => panic!("unexpected TokenType: {:?}", t),
     }
 }
 
