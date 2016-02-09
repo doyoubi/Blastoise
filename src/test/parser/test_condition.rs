@@ -264,18 +264,30 @@ fn test_binary_cond_exp() {
 
 #[test]
 fn test_complex_cond_expr() {
-    let tokens = gen_token!(
-        "person.money is not null and 1/2 > 3 or 4%(5-6) > 7 and not employee = \"doyoubi\"");
-    assert_eq!(tokens.len(), 26);
-    let mut it = tokens.iter();
-    let exp = ConditionExpr::parse(&mut it);
-    assert_pattern!(exp, Ok(..));
-    let exp = exp.unwrap();
-    let part1 = "((person.money) is not Null(null))";
-    let part2 = "((Integer(1) / Integer(2)) > Integer(3))";
-    let part3 = "((Integer(4) % (Integer(5) - Integer(6))) > Integer(7))";
-    let part4 = "(not (employee = String(doyoubi)))";
-    let result = format!("(({} and {}) or ({} and {}))", part1, part2, part3, part4);
-    assert_eq!(exp.to_string(), result);
-    assert_pattern!(it.next(), None);
+    {
+        let tokens = gen_token!(
+            "person.money is not null and 1/2 > 3 or 4%(5-6) > 7 and not employee = \"doyoubi\"");
+        assert_eq!(tokens.len(), 26);
+        let mut it = tokens.iter();
+        let exp = ConditionExpr::parse(&mut it);
+        assert_pattern!(exp, Ok(..));
+        let exp = exp.unwrap();
+        let part1 = "((person.money) is not Null(null))";
+        let part2 = "((Integer(1) / Integer(2)) > Integer(3))";
+        let part3 = "((Integer(4) % (Integer(5) - Integer(6))) > Integer(7))";
+        let part4 = "(not (employee = String(doyoubi)))";
+        let result = format!("(({} and {}) or ({} and {}))", part1, part2, part3, part4);
+        assert_eq!(exp.to_string(), result);
+        assert_pattern!(it.next(), None);
+    }
+    {
+        let tokens = gen_token!("dept.number > 1");
+        assert_eq!(tokens.len(), 5);
+        let mut it = tokens.iter();
+        let exp = ConditionExpr::parse(&mut it);
+        assert_pattern!(exp, Ok(..));
+        let exp = exp.unwrap();
+        assert_eq!(exp.to_string(), "((dept.number) > Integer(1))");
+        assert_pattern!(it.next(), None);
+    }
 }

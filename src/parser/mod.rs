@@ -9,4 +9,5 @@ pub mod attribute;
 #[allow(dead_code)]
 pub mod condition;
 
+#[allow(dead_code)]
 pub mod select;

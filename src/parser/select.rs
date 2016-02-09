@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::{Formatter, Display};
 use std::vec::Vec;
 use std::option::Option::{Some, None};
 use super::lexer::{TokenIter, TokenType};
@@ -7,10 +9,14 @@ use super::compile_error::ErrorList;
 use super::common::{
     align_iter,
     get_next_token,
-    consume_next_token,
     consume_next_token_with_type,
-    consume_next_token_with_type_list,
+    check_parse_to_end,
+    seq_parse_helper,
+    exp_list_to_string,
+    concat_format,
+    concat_error_list,
 };
+
 
 #[derive(Debug)]
 pub struct SelectStatement {
@@ -21,9 +27,42 @@ pub struct SelectStatement {
     pub order_by_attr : Option<AttributeExpr>,
 }
 
+impl Display for SelectStatement {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        let mut s = format!("{} from {}", self.select_expr, exp_list_to_string(&self.relation_list));
+        s = concat_format(format!("{} where", s), &self.where_condition);
+        s = concat_format(s, &self.groupby_having);
+        s = concat_format(format!("{} order by", s), &self.order_by_attr);
+        write!(f, "{}", s)
+    }
+}
+
 impl SelectStatement {
-    pub fn parse(_it : &mut TokenIter) -> Result<SelectStatement, ErrorList> {
-        Err(vec![])
+    pub fn parse(it : &mut TokenIter) -> Result<SelectStatement, ErrorList> {
+        let select_expr = try!(SelectExpr::parse(it));
+        let relation_list = try!(Relation::parse(it));
+        let (where_condition, es1) = seq_parse_helper(SelectStatement::parse_where, it);
+        let (groupby_having, es2) = seq_parse_helper(GroupbyHaving::parse, it);
+        let (order_by_attr, es3) = seq_parse_helper(SelectStatement::parse_order_by, it);
+        match check_parse_to_end(it) {
+            Some(err) => Err(concat_error_list(vec![vec![err], es1, es2, es3])),
+            None => Ok(SelectStatement {
+                select_expr : select_expr,
+                relation_list : relation_list,
+                where_condition : where_condition,
+                groupby_having : groupby_having,
+                order_by_attr : order_by_attr,
+            }),
+        }
+    }
+    pub fn parse_where(it : &mut TokenIter) -> Result<ConditionExpr, ErrorList> {
+        try!(consume_next_token_with_type(it, TokenType::Where));
+        ConditionExpr::parse(it)
+    }
+    pub fn parse_order_by(it : &mut TokenIter) -> Result<AttributeExpr, ErrorList> {
+        try!(consume_next_token_with_type(it, TokenType::Order));
+        try!(consume_next_token_with_type(it, TokenType::By));
+        AttributeExpr::parse(it)
     }
 }
 
@@ -44,15 +83,51 @@ impl SelectExpr {
     }
 }
 
+impl Display for SelectExpr {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        match self {
+            &SelectExpr::AllAttribute => write!(f, "select *"),
+            &SelectExpr::AttrList(ref attr_list) => write!(f, "select {}", exp_list_to_string(attr_list)),
+        }
+    }
+}
+
+
+pub type RelationList = Vec<Relation>;
+
 #[derive(Debug)]
 pub enum Relation {
     TableName(String),
     Select(SelectStatement),
 }
 
+impl Display for Relation {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        match self {
+            &Relation::TableName(ref name) => write!(f, "{}", name),
+            &Relation::Select(ref select) => write!(f, "({})", select),
+        }
+    }
+}
+
 impl Relation {
-    pub fn parse(it : &mut TokenIter) -> Result<Relation, ErrorList> {
+    pub fn parse(it : &mut TokenIter) -> Result<RelationList, ErrorList> {
         try!(consume_next_token_with_type(it, TokenType::From));
+        Relation::parse_list(it)
+    }
+    pub fn parse_list(it : &mut TokenIter) -> Result<RelationList, ErrorList> {
+        let mut relation_list = RelationList::new();
+        relation_list.push(try!(Relation::parse_relation(it)));
+        loop {
+            let mut tmp = it.clone();
+            if let Err(..) = consume_next_token_with_type(&mut tmp, TokenType::Comma) {
+                return Ok(relation_list);
+            }
+            relation_list.push(try!(Relation::parse_relation(&mut tmp)));
+            align_iter(it, &mut tmp);
+        }
+    }
+    pub fn parse_relation(it : &mut TokenIter) -> Result<Relation, ErrorList> {
         let token = try!(get_next_token(it));
         match token.token_type {
             TokenType::Select => Ok(Relation::Select(try!(SelectStatement::parse(it)))),
@@ -66,15 +141,24 @@ impl Relation {
 
 #[derive(Debug)]
 pub struct GroupbyHaving {
-    pub attr : String,
+    pub attr : AttributeExpr,
     pub having_condition : Option<ConditionExpr>,
+}
+
+impl Display for GroupbyHaving {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        match &self.having_condition {
+            &Some(ref cond_expr) => write!(f, "group by {} having {}", self.attr, cond_expr),
+            &None => write!(f, "group by {}", self.attr),
+        }
+    }
 }
 
 impl GroupbyHaving {
     pub fn parse(it : &mut TokenIter) -> Result<GroupbyHaving, ErrorList> {
-        try!(consume_next_token_with_type(it, TokenType::Having));
-        let token = try!(consume_next_token_with_type(it, TokenType::Identifier));
-        let attr = token.value.clone();
+        try!(consume_next_token_with_type(it, TokenType::Group));
+        try!(consume_next_token_with_type(it, TokenType::By));
+        let attr = try!(AttributeExpr::parse(it));
         match GroupbyHaving::parse_having(it) {
             Ok(cond) => Ok(GroupbyHaving{ attr : attr, having_condition : Some(cond) }),
             Err(..) => Ok(GroupbyHaving{ attr : attr, having_condition : None }),

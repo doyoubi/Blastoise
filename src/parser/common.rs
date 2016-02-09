@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
 use std::iter::ExactSizeIterator;
@@ -109,7 +110,7 @@ pub fn check_parse_to_end(it : &TokenIter) -> Option<ErrorRef> {
         Some(token) => Some(Rc::new(CompileError{
             error_type : CompileErrorType::ParserCanNotParseLeftToken,
             token : (*token).clone(),
-            error_msg : format!("Can not parse the left tokens : {:?}", token.value),
+            error_msg : format!("Can not parse the left tokens : {}", token.value),
         })),
     }
 }
@@ -212,4 +213,43 @@ macro_rules! or_parse_combine {
 // should be replaced when upgrade rust to 1.6
 pub fn extend_from_other(errors : &mut Vec<ErrorRef>, other : &Vec<ErrorRef>) {
     errors.extend(other.iter().cloned());
+}
+
+pub fn concat_error_list(es : Vec<ErrorList>) -> ErrorList {
+    let mut res = ErrorList::new();
+    for e in es.iter().flat_map(|es| es.iter()) {
+        res.push(e.clone());
+    }
+    res
+}
+
+pub fn seq_parse_helper<Res>(parse_func : fn(&mut TokenIter) -> Result<Res, ErrorList>,
+        it : &mut TokenIter) -> (Option<Res>, ErrorList) {
+    let mut tmp = it.clone();
+    match parse_func(&mut tmp) {
+        Ok(res) => {
+            align_iter(it, &mut tmp);
+            (Some(res), vec![])
+        }
+        Err(errs) => (None, errs),
+    }
+}
+
+pub fn exp_list_to_string<Exp : Display>(exp_list : &Vec<Exp>) -> String {
+    if exp_list.len() == 1 {
+        return format!("{}", exp_list.first().unwrap());
+    }
+    let mut it = exp_list.iter();
+    let mut s = format!("{}", it.next().unwrap());
+    for r in it {
+        s.push_str(&format!(", {}", r));
+    };
+    s
+}
+
+pub fn concat_format<Type : Display>(s : String, obj : &Option<Type>) -> String {
+    match obj {
+        &Some(ref obj) => format!("{} {}", s, obj),
+        &None => s,
+    }
 }

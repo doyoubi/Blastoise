@@ -6,3 +6,14 @@ macro_rules! extract {
         }
     )
 }
+
+macro_rules! impl_debug_from_display {
+    ($type_name:ident) => (
+        impl $type_name {
+            use std::fmt;
+            fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{}", self)
+            }
+        }
+    );
+}
