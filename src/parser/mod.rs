@@ -15,3 +15,5 @@ pub mod select;
 pub mod update;
 #[allow(dead_code)]
 pub mod insert;
+#[allow(dead_code)]
+pub mod create_drop;

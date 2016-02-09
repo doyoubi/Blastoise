@@ -3,6 +3,7 @@ use ::parser::select::{SelectExpr, Relation, GroupbyHaving, SelectStatement, Rel
 use ::parser::attribute::AttributeExpr;
 use ::parser::update::{AssignExpr, UpdateStatement};
 use ::parser::insert::InsertStatement;
+use ::parser::create_drop::DropStatement;
 
 #[test]
 fn test_parse_select_expr() {
@@ -202,4 +203,15 @@ fn test_insert_statement_parse() {
             "insert tab values(Integer(1), Null(null))");
         assert_pattern!(it.next(), None);
     }
+}
+
+#[test]
+fn test_drop_statement_parse() {
+    let tokens = gen_token!("drop table dept");
+    assert_eq!(tokens.len(), 3);
+    let mut it = tokens.iter();
+    let drop = DropStatement::parse(&mut it);
+    let drop = extract!(drop, Ok(drop), drop);
+    assert_eq!(format!("{}", drop), "drop table dept");
+    assert_pattern!(it.next(), None);
 }

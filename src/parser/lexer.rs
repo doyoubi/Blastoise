@@ -29,6 +29,10 @@ pub enum TokenType {
     Table,
     Drop,
 
+    Int,
+    Float,
+    Char,
+
     Null,         // null
     OpenBracket,  // (
     CloseBracket, // )
@@ -343,6 +347,9 @@ fn str_to_token_type(s : &str) -> Option<TokenType> {
         "or"     => Some(TokenType::Or),
         "not"    => Some(TokenType::Not),
         "is"     => Some(TokenType::Is),
+        "int"    => Some(TokenType::Int),
+        "float"  => Some(TokenType::Float),
+        "char"   => Some(TokenType::Char),
         _ => None,
     }
 }

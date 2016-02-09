@@ -134,9 +134,10 @@ fn test_keyword_token() {
     let mut h = TokenTestHelper::new(
         "select fROM Where order by group having \
          insert values update set delete \
-         create table drop null and or not is"
+         create table drop null and or not is \
+         int float char"
         );
-    assert_token_len!(h, 20);
+    assert_token_len!(h, 23);
     assert_error_len!(h, 0);
     assert_token_eq!(h, 1, "select", TokenType::Select);
     assert_token_eq!(h, 8, "fROM", TokenType::From);
@@ -158,6 +159,9 @@ fn test_keyword_token() {
     assert_token_eq!(h, 40 + 32 + 28, "or", TokenType::Or);
     assert_token_eq!(h, 40 + 32 + 31, "not", TokenType::Not);
     assert_token_eq!(h, 40 + 32 + 35, "is", TokenType::Is);
+    assert_token_eq!(h, 40 + 32 + 37 + 1, "int", TokenType::Int);
+    assert_token_eq!(h, 40 + 32 + 37 + 5, "float", TokenType::Float);
+    assert_token_eq!(h, 40 + 32 + 37 + 11, "char", TokenType::Char);
 }
 
 #[test]
