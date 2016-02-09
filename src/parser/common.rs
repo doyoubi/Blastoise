@@ -247,9 +247,9 @@ pub fn exp_list_to_string<Exp : Display>(exp_list : &Vec<Exp>) -> String {
     s
 }
 
-pub fn concat_format<Type : Display>(s : String, obj : &Option<Type>) -> String {
+pub fn concat_format<Type : Display>(s : String, additional : &str, obj : &Option<Type>) -> String {
     match obj {
-        &Some(ref obj) => format!("{} {}", s, obj),
+        &Some(ref obj) => format!("{} {}{}", s, additional, obj),
         &None => s,
     }
 }

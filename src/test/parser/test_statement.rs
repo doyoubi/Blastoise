@@ -102,4 +102,28 @@ fn test_parse_select_statement() {
             "select sum(employee) from table_name where ((tab.money) > Integer(0)) \
             group by (huang.guangxing) having ((dept.number) > Integer(1)) order by doyoubi");
     }
+    {
+        let tokens = gen_token!("select tab.attr from huang group by doyoubi");
+        assert_eq!(tokens.len(), 9);
+        let mut it = tokens.iter();
+        let select = SelectStatement::parse(&mut it);
+        let select = extract!(select, Ok(select), select);
+        assert_eq!(format!("{}", select), "select (tab.attr) from huang group by doyoubi");
+    }
+    {
+        let tokens = gen_token!("select attr from huang where doyoubi is not null");
+        assert_eq!(tokens.len(), 8);
+        let mut it = tokens.iter();
+        let select = SelectStatement::parse(&mut it);
+        let select = extract!(select, Ok(select), select);
+        assert_eq!(format!("{}", select), "select attr from huang where (doyoubi is not Null(null))");
+    }
+    {
+        let tokens = gen_token!("select attr from huang order by doyoubi");
+        assert_eq!(tokens.len(), 7);
+        let mut it = tokens.iter();
+        let select = SelectStatement::parse(&mut it);
+        let select = extract!(select, Ok(select), select);
+        assert_eq!(format!("{}", select), "select attr from huang order by doyoubi");
+    }
 }

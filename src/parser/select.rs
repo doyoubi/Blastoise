@@ -30,9 +30,9 @@ pub struct SelectStatement {
 impl Display for SelectStatement {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         let mut s = format!("{} from {}", self.select_expr, exp_list_to_string(&self.relation_list));
-        s = concat_format(format!("{} where", s), &self.where_condition);
-        s = concat_format(s, &self.groupby_having);
-        s = concat_format(format!("{} order by", s), &self.order_by_attr);
+        s = concat_format(s, "where ", &self.where_condition);
+        s = concat_format(s, "", &self.groupby_having);
+        s = concat_format(s, "order by ", &self.order_by_attr);
         write!(f, "{}", s)
     }
 }
