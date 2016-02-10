@@ -3,6 +3,7 @@ use ::parser::select::{SelectExpr, Relation, GroupbyHaving, SelectStatement, Rel
 use ::parser::attribute::AttributeExpr;
 use ::parser::update::{AssignExpr, UpdateStatement};
 use ::parser::insert::InsertStatement;
+use ::parser::delete::DeleteStatement;
 use ::parser::create_drop::{DropStatement, AttributeDeclaration, CreateStatement};
 use super::super::utils::{test_by_display_str, test_by_list_to_str};
 
@@ -133,6 +134,20 @@ fn test_insert_statement_parse() {
         "insert tab values(1, null)", 8,
         InsertStatement::parse,
         "insert tab values(Integer(1), Null(null))"
+    );
+}
+
+#[test]
+fn test_delete_statement_parse() {
+    test_by_display_str(
+        "delete from tab", 3,
+        DeleteStatement::parse,
+        "delete from tab"
+    );
+    test_by_display_str(
+        "delete from tab where a > 1", 7,
+        DeleteStatement::parse,
+        "delete from tab where (a > Integer(1))"
     );
 }
 
