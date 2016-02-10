@@ -32,6 +32,7 @@ pub enum TokenType {
     Int,
     Float,
     Char,
+    Primary,
 
     Null,         // null
     OpenBracket,  // (
@@ -350,6 +351,7 @@ fn str_to_token_type(s : &str) -> Option<TokenType> {
         "int"    => Some(TokenType::Int),
         "float"  => Some(TokenType::Float),
         "char"   => Some(TokenType::Char),
+        "primary"=> Some(TokenType::Primary),
         _ => None,
     }
 }

@@ -14,7 +14,7 @@ attribute ::= table_attribute | aggregate_function(attribute_name)
 table_attribute ::= attribute_name | table_name.attribute_name
 
 relation_list ::= relation [, relation ...]
-relation ::= table_name | select_statement
+relation ::= table_name | ( select_statement )
 
 condition ::= or_expr
 or_expr ::= and_expr [OR and_expr ...]
@@ -57,7 +57,7 @@ create_table_statement ::= CREATE TABLE table_name (
     attribute_declaration_list
 )
 attribute_declaration_list ::= attribute_declaration [, attribute_declaration]
-attribute_declaration ::= attribute_name attribute_type [NOT NULL]
+attribute_declaration ::= attribute_name attribute_type [NOT NULL] [PRIMARY]
 attribute_type ::= int | char | float
 
 # drop table

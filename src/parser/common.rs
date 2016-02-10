@@ -16,6 +16,15 @@ pub enum ValueType {
     Null,
 }
 
+pub fn gen_data_type(token_type : TokenType) -> ValueType {
+    match token_type {
+        TokenType::Int => ValueType::Integer,
+        TokenType::Float => ValueType::Float,
+        TokenType::Char => ValueType::String,
+        other_type => panic!("unexpected token type: {:?}", other_type),
+    }
+}
+
 pub type ValueList = Vec<ValueExpr>;
 
 #[derive(Debug)]

@@ -2,9 +2,18 @@ macro_rules! extract {
     ($expression:expr, $pattern:pat, $returned_value:expr) => (
         match $expression {
             $pattern => $returned_value,
-            _ => panic!("unexpected pattern: {:?}", $expression),
+            _ => panic!("extract error, unexpected pattern: {:?}", $expression),
         }
     )
+}
+
+macro_rules! is_match {
+    ($expression:expr, $pattern:pat) => (
+        match $expression {
+            $pattern => true,
+            _ => false,
+        }
+    );
 }
 
 macro_rules! impl_debug_from_display {

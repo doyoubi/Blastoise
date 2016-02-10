@@ -3,215 +3,184 @@ use ::parser::select::{SelectExpr, Relation, GroupbyHaving, SelectStatement, Rel
 use ::parser::attribute::AttributeExpr;
 use ::parser::update::{AssignExpr, UpdateStatement};
 use ::parser::insert::InsertStatement;
-use ::parser::create_drop::DropStatement;
+use ::parser::create_drop::{DropStatement, AttributeDeclaration, CreateStatement};
+use super::super::utils::{test_by_display_str, test_by_list_to_str};
 
 #[test]
 fn test_parse_select_expr() {
-    {
-        let tokens = gen_token!("select *");
-        assert_eq!(tokens.len(), 2);
-        let mut it = tokens.iter();
-        let exp = SelectExpr::parse(&mut it);
-        assert_pattern!(exp, Ok(..));
-        let exp = exp.unwrap();
-        assert_pattern!(exp, SelectExpr::AllAttribute);
-    }
-    {
-        let tokens = gen_token!("select attribute_name");
-        assert_eq!(tokens.len(), 2);
-        let mut it = tokens.iter();
-        let exp = SelectExpr::parse(&mut it);
-        assert_pattern!(exp, Ok(..));
-        let exp = exp.unwrap();
-        let attr_list = extract!(exp, SelectExpr::AttrList(attr_list), attr_list);
-        assert_eq!(attr_list.len(), 1);
-        let attr = &attr_list[0];
-        let (_, attr) = extract!(attr,
-            &AttributeExpr::TableAttr{ ref table, ref attr }, (table.clone(), attr.clone()));
-        assert_eq!(attr, "attribute_name");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("select a1, a2, a3");
-        assert_eq!(tokens.len(), 6);
-        let mut it = tokens.iter();
-        let exp = SelectExpr::parse(&mut it);
-        assert_pattern!(exp, Ok(..));
-        let exp = exp.unwrap();
-        assert_eq!(format!("{}", exp), "select a1, a2, a3");
-        assert_pattern!(it.next(), None);
-    }
+    test_by_display_str(
+        "select *", 2,
+        SelectExpr::parse,
+        "select *"
+    );
+    test_by_display_str(
+        "select attribute_name", 2,
+        SelectExpr::parse,
+        "select attribute_name"
+    );
+    test_by_display_str(
+        "select a1, a2, a3", 6,
+        SelectExpr::parse,
+        "select a1, a2, a3"
+    );
 }
 
 #[test]
 fn test_parse_relation() {
-    {
-        let tokens = gen_token!("from table_name");
-        assert_eq!(tokens.len(), 2);
-        let mut it = tokens.iter();
-        let exp_list = Relation::parse(&mut it);
-        let exp_list = extract!(exp_list, Ok(exp_list), exp_list);
-        assert_eq!(exp_list_to_string(&exp_list), "table_name");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("from tb1, tb2, tb3");  // TODO: add sub select
-        assert_eq!(tokens.len(), 6);
-        let mut it = tokens.iter();
-        let exp_list = Relation::parse(&mut it);
-        let exp_list = extract!(exp_list, Ok(exp_list), exp_list);
-        assert_eq!(exp_list_to_string(&exp_list), "tb1, tb2, tb3");
-        assert_pattern!(it.next(), None);
-    }
+    test_by_list_to_str(
+        "from table_name", 2,
+        Relation::parse,
+        "table_name"
+    );
+    test_by_list_to_str(
+        "from tb1, tb2, tb3", 6,
+        Relation::parse,
+        "tb1, tb2, tb3"
+    );
+    test_by_list_to_str(
+        "from (select * from tab)", 7,
+        Relation::parse,
+        "(select * from tab)"
+    );
+    test_by_list_to_str(
+        "from tab, (select * from tab)", 9,
+        Relation::parse,
+        "tab, (select * from tab)"
+    );
 }
 
 #[test]
 fn test_parse_group_by_having() {
-    {
-        let tokens = gen_token!("group by attribute");
-        assert_eq!(tokens.len(), 3);
-        let mut it = tokens.iter();
-        let exp = GroupbyHaving::parse(&mut it);
-        let (attr, having_condition) = extract!(
-            exp, Ok(GroupbyHaving{ attr, having_condition }), (attr, having_condition));
-        assert_eq!(format!("{}", attr), "attribute");
-        assert_pattern!(having_condition, None);
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("group by tab.attribute having dept.employee > 1");
-        assert_eq!(tokens.len(), 11);
-        let mut it = tokens.iter();
-        let exp = GroupbyHaving::parse(&mut it);
-        let (attr, having_condition) = extract!(
-            exp, Ok(GroupbyHaving{ attr, having_condition }), (attr, having_condition));
-        assert_eq!(format!("{}", attr), "(tab.attribute)");
-        assert_pattern!(having_condition, Some(..));
-        assert_pattern!(it.next(), None);
-    }
+    test_by_display_str(
+        "group by attribute", 3,
+        GroupbyHaving::parse,
+        "group by attribute"
+    );
+    test_by_display_str(
+        "group by tab.attribute having dept.employee > 1", 11,
+        GroupbyHaving::parse,
+        "group by (tab.attribute) having ((dept.employee) > Integer(1))"
+    );
 }
 
 #[test]
 fn test_parse_select_statement() {
-    {
-        let tokens = gen_token!(
-            "select sum(employee) from table_name where tab.money > 0\
-            group by huang.guangxing having dept.number > 1 order by doyoubi");
-        assert_eq!(tokens.len(), 27);
-        let mut it = tokens.iter();
-        let select = SelectStatement::parse(&mut it);
-        let select = extract!(select, Ok(select), select);
-        assert_eq!(format!("{}", select),
-            "select sum(employee) from table_name where ((tab.money) > Integer(0)) \
-            group by (huang.guangxing) having ((dept.number) > Integer(1)) order by doyoubi");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("select tab.attr from huang group by doyoubi");
-        assert_eq!(tokens.len(), 9);
-        let mut it = tokens.iter();
-        let select = SelectStatement::parse(&mut it);
-        let select = extract!(select, Ok(select), select);
-        assert_eq!(format!("{}", select), "select (tab.attr) from huang group by doyoubi");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("select attr from huang where doyoubi is not null");
-        assert_eq!(tokens.len(), 8);
-        let mut it = tokens.iter();
-        let select = SelectStatement::parse(&mut it);
-        let select = extract!(select, Ok(select), select);
-        assert_eq!(format!("{}", select), "select attr from huang where (doyoubi is not Null(null))");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("select attr from huang order by doyoubi");
-        assert_eq!(tokens.len(), 7);
-        let mut it = tokens.iter();
-        let select = SelectStatement::parse(&mut it);
-        let select = extract!(select, Ok(select), select);
-        assert_eq!(format!("{}", select), "select attr from huang order by doyoubi");
-        assert_pattern!(it.next(), None);
-    }
+    test_by_display_str(
+        "select sum(employee) from table_name where tab.money > 0\
+        group by huang.guangxing having dept.number > 1 order by doyoubi",
+        27,
+        SelectStatement::parse,
+        "select sum(employee) from table_name where ((tab.money) > Integer(0)) \
+        group by (huang.guangxing) having ((dept.number) > Integer(1)) order by doyoubi"
+    );
+    test_by_display_str(
+        "select tab.attr from huang group by doyoubi", 9,
+        SelectStatement::parse,
+        "select (tab.attr) from huang group by doyoubi"
+    );
+    test_by_display_str(
+        "select attr from huang where doyoubi is not null", 8,
+        SelectStatement::parse,
+        "select attr from huang where (doyoubi is not Null(null))"
+    );
+    test_by_display_str(
+        "select attr from huang order by doyoubi", 7,
+        SelectStatement::parse,
+        "select attr from huang order by doyoubi"
+    );
 }
 
 #[test]
 fn test_parse_assign() {
-    let tokens = gen_token!("abc = 1");
-    assert_eq!(tokens.len(), 3);
-    let mut it = tokens.iter();
-    let assign = AssignExpr::parse(&mut it);
-    let assign = extract!(assign, Ok(assign), assign);
-    assert_eq!(exp_list_to_string(&assign), "(abc = Integer(1))");
-    assert_pattern!(it.next(), None);
+    test_by_list_to_str(
+        "abc = 1", 3,
+        AssignExpr::parse,
+        "(abc = Integer(1))"
+    );
 }
 
 #[test]
 fn test_parse_assign_list() {
-    let tokens = gen_token!("a = 1, b = 2");
-    assert_eq!(tokens.len(), 7);
-    let mut it = tokens.iter();
-    let list = AssignExpr::parse(&mut it);
-    let list = extract!(list, Ok(list), list);
-    assert_eq!(exp_list_to_string(&list), "(a = Integer(1)), (b = Integer(2))");
-    assert_pattern!(it.next(), None);
+    test_by_list_to_str(
+        "a = 1, b = 2", 7,
+        AssignExpr::parse,
+        "(a = Integer(1)), (b = Integer(2))"
+    );
 }
 
 #[test]
 fn test_udpate_statement_parse() {
-    {
-        let tokens = gen_token!("update tab set a = 1");
-        assert_eq!(tokens.len(), 6);
-        let mut it = tokens.iter();
-        let update = UpdateStatement::parse(&mut it);
-        let update = extract!(update, Ok(update), update);
-        assert_eq!(format!("{}", update),
-            "update tab set (a = Integer(1))");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("update tab set a = 1, b = \"string\" where a > 1");
-        assert_eq!(tokens.len(), 14);
-        let mut it = tokens.iter();
-        let update = UpdateStatement::parse(&mut it);
-        let update = extract!(update, Ok(update), update);
-        assert_eq!(format!("{}", update),
-            "update tab set (a = Integer(1)), (b = String(string)) where (a > Integer(1))");
-        assert_pattern!(it.next(), None);
-    }
+    test_by_display_str(
+        "update tab set a = 1", 6,
+        UpdateStatement::parse,
+        "update tab set (a = Integer(1))"
+    );
+    test_by_display_str(
+        "update tab set a = 1, b = \"string\" where a > 1", 14,
+        UpdateStatement::parse,
+        "update tab set (a = Integer(1)), (b = String(string)) where (a > Integer(1))"
+    );
 }
 
 #[test]
 fn test_insert_statement_parse() {
-    {
-        let tokens = gen_token!("insert tab values(1)");
-        assert_eq!(tokens.len(), 6);
-        let mut it = tokens.iter();
-        let insert = InsertStatement::parse(&mut it);
-        let insert = extract!(insert, Ok(insert), insert);
-        assert_eq!(format!("{}", insert),
-            "insert tab values(Integer(1))");
-        assert_pattern!(it.next(), None);
-    }
-    {
-        let tokens = gen_token!("insert tab values(1, null)");
-        assert_eq!(tokens.len(), 8);
-        let mut it = tokens.iter();
-        let insert = InsertStatement::parse(&mut it);
-        let insert = extract!(insert, Ok(insert), insert);
-        assert_eq!(format!("{}", insert),
-            "insert tab values(Integer(1), Null(null))");
-        assert_pattern!(it.next(), None);
-    }
+    test_by_display_str(
+        "insert tab values(1)", 6,
+        InsertStatement::parse,
+        "insert tab values(Integer(1))"
+    );
+    test_by_display_str(
+        "insert tab values(1, null)", 8,
+        InsertStatement::parse,
+        "insert tab values(Integer(1), Null(null))"
+    );
 }
 
 #[test]
 fn test_drop_statement_parse() {
-    let tokens = gen_token!("drop table dept");
-    assert_eq!(tokens.len(), 3);
-    let mut it = tokens.iter();
-    let drop = DropStatement::parse(&mut it);
-    let drop = extract!(drop, Ok(drop), drop);
-    assert_eq!(format!("{}", drop), "drop table dept");
-    assert_pattern!(it.next(), None);
+    test_by_display_str(
+        "drop table dept", 3,
+        DropStatement::parse,
+        "drop table dept"
+    );
+}
+
+#[test]
+fn test_attribute_declaration_parse() {
+    test_by_display_str(
+        "name char not null", 4,
+        AttributeDeclaration::parse_decl,
+        "(name String not null)"
+    );
+    test_by_display_str(
+        "name char null", 3,
+        AttributeDeclaration::parse_decl,
+        "(name String null)"
+    );
+    test_by_display_str(
+        "name char primary", 3,
+        AttributeDeclaration::parse_decl,
+        "(name String null primary)"
+    );
+}
+
+#[test]
+fn test_attr_decl_list() {
+    test_by_list_to_str(
+        "title char not null, content char", 7,
+        AttributeDeclaration::parse_list,
+        "(title String not null), (content String null)"
+    );
+}
+
+#[test]
+fn test_create_statement_parse() {
+    test_by_display_str(
+        "create dept (\
+            id int primary,\
+            name char not null\
+        )", 12,
+        CreateStatement::parse,
+        "create dept ((id Integer null primary), (name String not null))"
+    )
 }

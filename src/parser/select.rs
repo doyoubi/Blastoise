@@ -38,6 +38,24 @@ impl Display for SelectStatement {
 }
 
 impl SelectStatement {
+    pub fn parse_as_sub_relation(it : &mut TokenIter) -> Result<SelectStatement, ErrorList> {
+        try!(consume_next_token_with_type(it, TokenType::OpenBracket));
+        let select_expr = try!(SelectExpr::parse(it));
+        let relation_list = try!(Relation::parse(it));
+        let (where_condition, es1) = seq_parse_helper(SelectStatement::parse_where, it);
+        let (groupby_having, es2) = seq_parse_helper(GroupbyHaving::parse, it);
+        let (order_by_attr, es3) = seq_parse_helper(SelectStatement::parse_order_by, it);
+        match consume_next_token_with_type(it, TokenType::CloseBracket) {
+            Err(errs) => Err(concat_error_list(vec![errs, es1, es2, es3])),
+            Ok(..) => Ok(SelectStatement {
+                    select_expr : select_expr,
+                    relation_list : relation_list,
+                    where_condition : where_condition,
+                    groupby_having : groupby_having,
+                    order_by_attr : order_by_attr,
+                })
+        }
+    }
     pub fn parse(it : &mut TokenIter) -> Result<SelectStatement, ErrorList> {
         let select_expr = try!(SelectExpr::parse(it));
         let relation_list = try!(Relation::parse(it));
@@ -77,8 +95,11 @@ impl SelectExpr {
         try!(consume_next_token_with_type(it, TokenType::Select));
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::Star => Ok(SelectExpr::AllAttribute),
-            _ => Ok(SelectExpr::AttrList(try!(AttributeExpr::parse_list(it)))),
+            TokenType::Star => {
+                it.next();
+                Ok(SelectExpr::AllAttribute)
+            }
+            _ => Ok(SelectExpr::AttrList(try!(AttributeExpr::parse_list(it))))
         }
     }
 }
@@ -121,7 +142,8 @@ impl Relation {
     pub fn parse_relation(it : &mut TokenIter) -> Result<Relation, ErrorList> {
         let token = try!(get_next_token(it));
         match token.token_type {
-            TokenType::Select => Ok(Relation::Select(try!(SelectStatement::parse(it)))),
+            TokenType::OpenBracket =>
+                Ok(Relation::Select(try!(SelectStatement::parse_as_sub_relation(it)))),
             _ => {
                 let token = try!(consume_next_token_with_type(it, TokenType::Identifier));
                 Ok(Relation::TableName(token.value.clone()))
