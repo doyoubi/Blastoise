@@ -4,13 +4,11 @@ use std::option::Option::{Some, None};
 use super::lexer::{TokenIter, TokenType};
 use super::compile_error::ErrorList;
 use super::common::{
-    ValueType,
     consume_next_token_with_type,
     consume_next_token_with_type_list,
     check_parse_to_end,
     exp_list_to_string,
     parse_list_helper,
-    gen_data_type,
     seq_parse_helper,
 };
 
@@ -44,12 +42,47 @@ impl CreateStatement {
     }
 }
 
+#[derive(Debug)]
+pub enum AttrType {
+    Int,
+    Float,
+    Char{ len : String },
+}
+
+impl Display for AttrType {
+    fn fmt(&self, f : &mut Formatter) -> fmt::Result {
+        match self {
+            &AttrType::Int => write!(f, "Int"),
+            &AttrType::Float => write!(f, "Float"),
+            &AttrType::Char{ ref len } => write!(f, "Char({})", len),
+        }
+    }
+}
+
+impl AttrType {
+    pub fn parse(it : &mut TokenIter) -> Result<AttrType, ErrorList> {
+        let data_type_tokens = vec![TokenType::Int, TokenType::Float, TokenType::Char];
+        let token = try!(consume_next_token_with_type_list(it, &data_type_tokens));
+        match token.token_type {
+            TokenType::Int => Ok(AttrType::Int),
+            TokenType::Float => Ok(AttrType::Float),
+            TokenType::Char => {
+                try!(consume_next_token_with_type(it, TokenType::OpenBracket));
+                let len_token = try!(consume_next_token_with_type(it, TokenType::IntegerLiteral));
+                try!(consume_next_token_with_type(it, TokenType::CloseBracket));
+                Ok(AttrType::Char{ len : len_token.value.clone() })
+            }
+            other => panic!("unexpected token: {:?}", other),
+        }
+    }
+}
+
 pub type AttrDeclList = Vec<AttributeDeclaration>;
 
 #[derive(Debug)]
 pub struct AttributeDeclaration {
     name : String,
-    value_type : ValueType,
+    attr_type : AttrType,
     nullable : bool,
     primary : bool,
 }
@@ -58,7 +91,7 @@ impl Display for AttributeDeclaration {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
         let null = if self.nullable {" null"} else {" not null"};
         let primary = if self.primary {" primary"} else {""};
-        write!(f, "({} {:?}{}{})", self.name, self.value_type, null, primary)
+        write!(f, "({} {}{}{})", self.name, self.attr_type, null, primary)
     }
 }
 
@@ -68,15 +101,14 @@ impl AttributeDeclaration {
     }
     pub fn parse_decl(it : &mut TokenIter) -> Result<AttributeDeclaration, ErrorList> {
         let table_token = try!(consume_next_token_with_type(it, TokenType::Identifier));
-        let data_type_tokens = vec![TokenType::Int, TokenType::Float, TokenType::Char];
-        let type_token = try!(consume_next_token_with_type_list(it, &data_type_tokens));
+        let attr_type = try!(AttrType::parse(it));
         let nullable = !is_match!(seq_parse_helper(
             AttributeDeclaration::parse_null_specifier, it), (Some(false), _));
         let primary = is_match!(seq_parse_helper(
             AttributeDeclaration::parse_primary, it), (Some(true), _));
         Ok(AttributeDeclaration{
             name : table_token.value.clone(),
-            value_type : gen_data_type(type_token.token_type),
+            attr_type : attr_type,
             nullable : nullable,
             primary : primary,
         })

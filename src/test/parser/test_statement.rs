@@ -4,7 +4,7 @@ use ::parser::attribute::AttributeExpr;
 use ::parser::update::{AssignExpr, UpdateStatement};
 use ::parser::insert::InsertStatement;
 use ::parser::delete::DeleteStatement;
-use ::parser::create_drop::{DropStatement, AttributeDeclaration, CreateStatement};
+use ::parser::create_drop::{DropStatement, AttributeDeclaration, CreateStatement, AttrType};
 use super::super::utils::{test_by_display_str, test_by_list_to_str};
 
 #[test]
@@ -163,28 +163,47 @@ fn test_drop_statement_parse() {
 #[test]
 fn test_attribute_declaration_parse() {
     test_by_display_str(
-        "name char not null", 4,
+        "name char(1) not null", 7,
         AttributeDeclaration::parse_decl,
-        "(name String not null)"
+        "(name Char(1) not null)"
     );
     test_by_display_str(
-        "name char null", 3,
+        "name char(1) null", 6,
         AttributeDeclaration::parse_decl,
-        "(name String null)"
+        "(name Char(1) null)"
     );
     test_by_display_str(
-        "name char primary", 3,
+        "name char(1) primary", 6,
         AttributeDeclaration::parse_decl,
-        "(name String null primary)"
+        "(name Char(1) null primary)"
+    );
+}
+
+#[test]
+fn test_attr_type_parse() {
+    test_by_display_str(
+        "int", 1,
+        AttrType::parse,
+        "Int"
+    );
+    test_by_display_str(
+        "float", 1,
+        AttrType::parse,
+        "Float"
+    );
+    test_by_display_str(
+        "char(10)", 4,
+        AttrType::parse,
+        "Char(10)"
     );
 }
 
 #[test]
 fn test_attr_decl_list() {
     test_by_list_to_str(
-        "title char not null, content char", 7,
+        "title char(233) not null, content char(666)", 13,
         AttributeDeclaration::parse_list,
-        "(title String not null), (content String null)"
+        "(title Char(233) not null), (content Char(666) null)"
     );
 }
 
@@ -193,9 +212,9 @@ fn test_create_statement_parse() {
     test_by_display_str(
         "create dept (\
             id int primary,\
-            name char not null\
-        )", 12,
+            name char(666) not null\
+        )", 15,
         CreateStatement::parse,
-        "create dept ((id Integer null primary), (name String not null))"
+        "create dept ((id Int null primary), (name Char(666) not null))"
     )
 }

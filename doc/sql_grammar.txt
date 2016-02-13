@@ -58,7 +58,7 @@ create_table_statement ::= CREATE TABLE table_name (
 )
 attribute_declaration_list ::= attribute_declaration [, attribute_declaration]
 attribute_declaration ::= attribute_name attribute_type [NOT NULL] [PRIMARY]
-attribute_type ::= int | char | float
+attribute_type ::= int | char ( integer_literal ) | float
 
 # drop table
 drop_table_statement ::= DROP TABLE table_name;
