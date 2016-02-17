@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 #[derive(Copy, Clone)]
 pub enum AttrType {
-    Integer,
+    Int,
     Float,
-    String,
+    Char{ len : usize },
 }
 
 #[derive(Copy, Clone)]
