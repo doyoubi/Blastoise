@@ -3,12 +3,15 @@ use std::vec::Vec;
 use std::ptr::null_mut;
 use std::option::Option::{Some, None};
 use std::hash::{Hash, Hasher, SipHasher};
+use std::clone::Clone;
+use std::mem::swap;
+use std::result::Result;
+use std::result::Result::Err;
 
 
-pub trait CacheValue {
+pub trait CacheValue : Clone {
     type KeyType : Hash;
-    fn pop_callback(&mut self);
-    fn poppable(&mut self) -> bool;
+    fn pop_callback(self, new_value : &mut Self) -> Result<(), Self>;
 }
 
 
@@ -83,16 +86,16 @@ impl<'a, ValueType : CacheValue> LruCache<'a, ValueType> {
         self.hash_map.len()
     }
 
-    pub fn get_head(&mut self) -> Option<&mut ValueType> {
+    pub fn get_head(&mut self) -> Option<ValueType> {
         unsafe {
             match dr!(self.head).value {
-                Some(ref mut value) => Some(value),
+                Some(ref mut value) => Some(value.clone()),
                 None => None,
             }
         }
     }
 
-    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<&mut ValueType> {
+    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<ValueType> {
         if !self.get_helper(key) {
             return None;
         }
@@ -111,18 +114,22 @@ impl<'a, ValueType : CacheValue> LruCache<'a, ValueType> {
         false
     }
 
-    pub fn put(&mut self, key : &ValueType::KeyType, value : ValueType) -> bool {
+    pub fn put(&mut self, key : &ValueType::KeyType, mut value : ValueType) -> bool {
         let k = hash(key);
         let hash_map = &mut self.hash_map;
         assert!(!hash_map.get(&k).is_some());
         let head = &mut self.head;
         let tail = &mut self.tail;
 
-        if let Some(ref mut value) = dre!(*tail).value {
-            if !value.poppable() {
+        let old_value = &mut dre!(*tail).value;
+        if old_value.is_some() {
+            let mut tmp = None;
+            swap(old_value, &mut tmp);
+            let tmp = tmp.unwrap();
+            if let Err(v) = tmp.pop_callback(&mut value) {
+                swap(&mut Some(v), old_value);
                 return false;
             }
-            value.pop_callback();
             hash_map.remove(&dre!(*tail).key);
         }
 
