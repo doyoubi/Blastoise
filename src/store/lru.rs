@@ -7,18 +7,18 @@ use std::clone::Clone;
 use std::mem::swap;
 use std::result::Result;
 use std::result::Result::Err;
+use std::fmt::Debug;
 
 
-pub trait CacheValue : Clone {
+pub trait CacheValue : Clone + Debug {
     type KeyType : Hash;
     fn pop_callback(self, new_value : &mut Self) -> Result<(), Self>;
 }
 
 
 type NodePtr<ValueType> = *mut Node<ValueType>;
-type NodeRef<'a, ValueType> = &'a mut Node<ValueType>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Node<ValueType> {
     key : u64,
     value : Option<ValueType>,
@@ -37,10 +37,10 @@ impl<ValueType> Node<ValueType> {
     }
 }
 
-
-pub struct LruCache<'a, ValueType : 'a> {
+#[derive(Debug)]
+pub struct LruCache<ValueType> {
     capacity : usize,
-    hash_map : HashMap<u64, NodeRef<'a, ValueType>>,
+    hash_map : HashMap<u64, NodePtr<ValueType>>,
     node_list : Vec<Node<ValueType>>,
     head : NodePtr<ValueType>,
     tail : NodePtr<ValueType>,
@@ -58,8 +58,8 @@ macro_rules! dre {
     ($p:expr) => (unsafe{&mut *($p)});
 }
 
-impl<'a, ValueType : CacheValue> LruCache<'a, ValueType> {
-    pub fn new(capacity : usize) -> LruCache<'a, ValueType> {
+impl<ValueType : CacheValue> LruCache<ValueType> {
+    pub fn new(capacity : usize) -> LruCache<ValueType> {
         assert!(capacity > 0);
         let mut node_list : Vec<Node<ValueType>> = Vec::with_capacity(capacity);
         for _ in 0 .. capacity {
@@ -115,6 +115,7 @@ impl<'a, ValueType : CacheValue> LruCache<'a, ValueType> {
     }
 
     pub fn put(&mut self, key : &ValueType::KeyType, mut value : ValueType) -> bool {
+        // return false when pool is full
         let k = hash(key);
         let hash_map = &mut self.hash_map;
         assert!(!hash_map.get(&k).is_some());
@@ -138,7 +139,7 @@ impl<'a, ValueType : CacheValue> LruCache<'a, ValueType> {
         let head_node = dre!(*head);
         head_node.value = Some(value);
         head_node.key = k;
-        hash_map.insert(k, head_node);
+        hash_map.insert(k, *head);
         true
     }
 
