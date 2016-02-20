@@ -26,3 +26,13 @@ macro_rules! impl_debug_from_display {
         }
     );
 }
+
+macro_rules! lock_unwrap {
+    ($result:expr) => ({
+        use std::result::Result::{Ok, Err};
+        match $result {
+            Ok(guard) => guard,
+            Err(err) => panic!("lock error accur {:?}", err),
+        }
+    })
+}

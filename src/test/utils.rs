@@ -50,3 +50,14 @@ pub fn test_by_list_to_str<Res : Display + Debug>(
     assert_eq!(exp_list_to_string(&res), debug_str);
     assert_pattern!(it.next(), None);
 }
+
+pub fn remove_blanks(s : &str) -> String {
+    let mut result = String::new();
+    for c in s.chars() {
+        match c {
+            '\n' | ' ' | '\t' => continue,
+            _ => result.push(c),
+        };
+    }
+    result
+}
