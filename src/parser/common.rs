@@ -5,6 +5,11 @@ use std::result::Result::{Ok, Err};
 use std::iter::ExactSizeIterator;
 use super::lexer::{Token, TokenRef, TokenType, TokenIter};
 use super::compile_error::{CompileError, CompileErrorType, ErrorRef, ErrorList};
+use super::select::SelectStatement;
+use super::update::UpdateStatement;
+use super::insert::InsertStatement;
+use super::delete::DeleteStatement;
+use super::create_drop::{CreateStatement, DropStatement};
 
 
 #[allow(dead_code)]  // lint bug
@@ -307,5 +312,34 @@ pub fn parse_list_helper<Expr>(parse_func : fn(it : &mut TokenIter) -> Result<Ex
         }
         exp_list.push(try!(parse_func(&mut tmp)));
         align_iter(it, &mut tmp);
+    }
+}
+
+
+#[derive(Debug)]
+pub enum Statement {
+    Select(SelectStatement),
+    Update(UpdateStatement),
+    Insert(InsertStatement),
+    Delete(DeleteStatement),
+    Create(CreateStatement),
+    Drop(DropStatement),
+}
+
+impl Statement {
+    pub fn parse(it : &mut TokenIter) -> Result<Statement, ErrorList> {
+        let mut tmp = it.clone();
+        let type_list = vec![TokenType::Select, TokenType::Update,TokenType::Insert,
+            TokenType::Delete, TokenType::Create, TokenType::Drop];
+        let token = try!(consume_next_token_with_type_list(&mut tmp, &type_list));
+        Ok(match token.token_type {
+            TokenType::Select => Statement::Select(try!(SelectStatement::parse(it))),
+            TokenType::Update => Statement::Update(try!(UpdateStatement::parse(it))),
+            TokenType::Insert => Statement::Insert(try!(InsertStatement::parse(it))),
+            TokenType::Delete => Statement::Delete(try!(DeleteStatement::parse(it))),
+            TokenType::Create => Statement::Create(try!(CreateStatement::parse(it))),
+            TokenType::Drop => Statement::Drop(try!(DropStatement::parse(it))),
+            _ => panic!("invalid state"),
+        })
     }
 }

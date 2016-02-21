@@ -3,6 +3,7 @@ use std::result::Result::Ok;
 use ::parser::common::{
     check_parse_to_end,
     align_iter,
+    Statement,
 };
 
 
@@ -35,4 +36,43 @@ fn test_align_iter() {
     assert_eq!(j.len(), 2);
     align_iter(&mut i, &mut j);
     assert_eq!(i.len(), j.len())
+}
+
+fn gen_stmt(s : &str) -> Statement {
+    let tokens = gen_token!(s);
+    extract!(Statement::parse(&mut tokens.iter()), Ok(stmt), stmt)
+}
+
+#[test]
+fn test_statement() {
+    {
+        let stmt = gen_stmt("select * from book");
+        let stmt = extract!(stmt, Statement::Select(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "select * from book");
+    }
+    {
+        let stmt = gen_stmt("update book set price = 100");
+        let stmt = extract!(stmt, Statement::Update(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "update book set (price = Integer(100))");
+    }
+    {
+        let stmt = gen_stmt("insert book values(100)");
+        let stmt = extract!(stmt, Statement::Insert(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "insert book values(Integer(100))");
+    }
+    {
+        let stmt = gen_stmt("delete from book");
+        let stmt = extract!(stmt, Statement::Delete(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "delete from book");
+    }
+    {
+        let stmt = gen_stmt("create book(name char(100))");
+        let stmt = extract!(stmt, Statement::Create(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "create book ((name Char(100) null))");
+    }
+    {
+        let stmt = gen_stmt("drop table book");
+        let stmt = extract!(stmt, Statement::Drop(stmt), stmt);
+        assert_eq!(format!("{}", stmt), "drop table book");
+    }
 }
