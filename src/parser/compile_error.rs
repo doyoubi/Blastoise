@@ -16,6 +16,13 @@ pub enum CompileErrorType {
     ParserNoTable,
     ParserLackOfSpecifyingTable,
     ParserCanNotParseLeftToken,
+
+    SemTableNotExist,
+    SemTableExist,
+    SemDuplicateAttr,
+    SemNullablePrimary,
+    SemMultiplePrimary,
+    SemNoPrimary,
 }
 
 #[derive(Debug)]

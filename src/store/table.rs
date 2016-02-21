@@ -81,6 +81,12 @@ impl TableManager {
             None => None,
         }
     }
+    pub fn exist(&self, name : &str) -> bool {
+        match self.tables.get(name) {
+            Some(..) => true,
+            None => false,
+        }
+    }
 }
 
 impl Encodable for AttrType {

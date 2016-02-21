@@ -21,13 +21,14 @@ pub struct CreateStatement {
 
 impl Display for CreateStatement {
     fn fmt(&self, f : &mut Formatter) -> fmt::Result {
-        write!(f, "create {} ({})", self.table, exp_list_to_string(&self.decl_list))
+        write!(f, "create table {} ({})", self.table, exp_list_to_string(&self.decl_list))
     }
 }
 
 impl CreateStatement {
     pub fn parse(it : &mut TokenIter) -> Result<CreateStatement, ErrorList> {
         try!(consume_next_token_with_type(it, TokenType::Create));
+        try!(consume_next_token_with_type(it, TokenType::Table));
         let table_token = try!(consume_next_token_with_type(it, TokenType::Identifier));
         try!(consume_next_token_with_type(it, TokenType::OpenBracket));
         let decl_list = try!(AttributeDeclaration::parse_list(it));
@@ -81,10 +82,10 @@ pub type AttrDeclList = Vec<AttributeDeclaration>;
 
 #[derive(Debug)]
 pub struct AttributeDeclaration {
-    name : String,
-    attr_type : AttrType,
-    nullable : bool,
-    primary : bool,
+    pub name : String,
+    pub attr_type : AttrType,
+    pub nullable : bool,
+    pub primary : bool,
 }
 
 impl Display for AttributeDeclaration {

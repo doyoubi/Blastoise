@@ -66,9 +66,9 @@ fn test_statement() {
         assert_eq!(format!("{}", stmt), "delete from book");
     }
     {
-        let stmt = gen_stmt("create book(name char(100))");
+        let stmt = gen_stmt("create table book(name char(100))");
         let stmt = extract!(stmt, Statement::Create(stmt), stmt);
-        assert_eq!(format!("{}", stmt), "create book ((name Char(100) null))");
+        assert_eq!(format!("{}", stmt), "create table book ((name Char(100) null))");
     }
     {
         let stmt = gen_stmt("drop table book");

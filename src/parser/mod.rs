@@ -19,3 +19,5 @@ pub mod insert;
 pub mod delete;
 #[allow(dead_code)]
 pub mod create_drop;
+#[allow(dead_code)]
+pub mod sem_check;

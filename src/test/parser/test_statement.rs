@@ -210,11 +210,11 @@ fn test_attr_decl_list() {
 #[test]
 fn test_create_statement_parse() {
     test_by_display_str(
-        "create dept (\
+        "create table dept (\
             id int primary,\
             name char(666) not null\
-        )", 15,
+        )", 16,
         CreateStatement::parse,
-        "create dept ((id Int null primary), (name Char(666) not null))"
+        "create table dept ((id Int null primary), (name Char(666) not null))"
     )
 }
