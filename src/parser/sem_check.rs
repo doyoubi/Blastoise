@@ -10,7 +10,7 @@ use super::insert::InsertStatement;
 use super::delete::DeleteStatement;
 use super::create_drop::{CreateStatement, DropStatement};
 use super::condition::{ConditionExpr, ArithExpr, CmpOperantExpr, CmpOp};
-use ::store::table::TableSet;
+use ::store::table::{TableSet, AttrType};
 
 
 pub type SemResult = Result<(), ErrorList>;
@@ -40,15 +40,18 @@ pub fn check_delete(stmt : &DeleteStatement, table_set : &TableSet) -> SemResult
     unimplemented!()
 }
 
-pub fn check_condition(condition : &ConditionExpr, table_set : &TableSet, is_having_cond : bool) -> SemResult {
+pub fn check_condition(
+        condition : &ConditionExpr,
+        table_set : &TableSet,
+        group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
     match condition {
-        &ConditionExpr::NotExpr{ref operant} => check_condition(operant, table_set, is_having_cond),
+        &ConditionExpr::NotExpr{ref operant} => check_condition(operant, table_set, &group_by_attr),
         &ConditionExpr::LogicExpr{ref lhs, ref rhs, .. } => {
-            try!(check_condition(lhs, table_set, is_having_cond));
-            check_condition(rhs, table_set, is_having_cond)
+            try!(check_condition(lhs, table_set, &group_by_attr));
+            check_condition(rhs, table_set, &group_by_attr)
         }
         &ConditionExpr::CmpExpr{ref lhs, ref rhs, op } => {
-            match op {
+            let must_be_num_type = match op {
                 CmpOp::LT | CmpOp::GT | CmpOp::LE | CmpOp::GE => {
                     match (lhs.get_type(), rhs.get_type()) {
                         (ValueType::String, _) | (ValueType::Null, _)
@@ -58,6 +61,7 @@ pub fn check_condition(condition : &ConditionExpr, table_set : &TableSet, is_hav
                             }
                         _ => ()
                     }
+                    true
                 }
                 CmpOp::EQ | CmpOp::NE => {
                     match (lhs.get_type(), rhs.get_type()) {
@@ -67,10 +71,13 @@ pub fn check_condition(condition : &ConditionExpr, table_set : &TableSet, is_hav
                         }
                         _ => ()
                     }
+                    false
                 }
                 CmpOp::Is | CmpOp::IsNot => {
                     match lhs {
-                        &CmpOperantExpr::Arith(ArithExpr::Attr(..)) => (),
+                        &CmpOperantExpr::Arith(ArithExpr::Attr(ref attr)) => {
+                            try!(check_is_nullable(attr, table_set));
+                        }
                         _ => return Err(create_error(CompileErrorType::SemInvalidValueType,
                             format!("expected attribute or aggregate function\
                                 in the left of `is` and `is not`, found {}", lhs)))
@@ -80,43 +87,122 @@ pub fn check_condition(condition : &ConditionExpr, table_set : &TableSet, is_hav
                         _ => return Err(create_error(CompileErrorType::SemInvalidValueType,
                             format!("only null is allowd after `is` or `is not`, found {}", rhs)))
                     }
+                    false
                 }
-            }
+            };
             if let &CmpOperantExpr::Arith(ref lhs_arith) = lhs {
-                try!(check_arith_expr(lhs_arith, table_set, is_having_cond));
+                try!(check_arith_expr(lhs_arith, table_set, must_be_num_type, &group_by_attr));
             }
             if let &CmpOperantExpr::Arith(ref rhs_arith) = rhs {
-                try!(check_arith_expr(rhs_arith, table_set, is_having_cond));
+                try!(check_arith_expr(rhs_arith, table_set, must_be_num_type, &group_by_attr));
             }
             Ok(())
         }
     }
 }
 
-pub fn check_arith_expr(arith : &ArithExpr, table_set : &TableSet, is_having_cond : bool) -> SemResult {
+pub fn check_is_nullable(attr : &AttributeExpr, table_set : &TableSet) -> SemResult {
+    let (table, attr) = match attr {
+        &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
+        &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
+    };
+    try!(check_attr_exist(table, attr, table_set));
+    if !table_set.get_attr(table, attr).unwrap().nullable {
+        return Err(create_error(CompileErrorType::SemAttributeNotNullable,
+            format!("attribute `{}` is not nullale", attr)));
+    }
+    Ok(())
+}
+
+pub fn check_arith_expr(
+        arith : &ArithExpr,
+        table_set : &TableSet,
+        must_be_num_type : bool,
+        group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
     match arith {
         &ArithExpr::Value(ValueExpr{value_type, ..}) => {
             // already guranteed by grammar
             assert!(value_type == ValueType::Integer || value_type == ValueType::Float);
             Ok(())
         }
-        &ArithExpr::MinusExpr{ref operant} => check_arith_expr(operant, table_set, is_having_cond),
-        &ArithExpr::BinaryExpr{ref lhs, ref rhs, ..} => {
-            try!(check_arith_expr(lhs, table_set, is_having_cond));
-            check_arith_expr(rhs, table_set, is_having_cond)
+        &ArithExpr::MinusExpr{ref operant} => {
+            check_arith_expr(operant, table_set, must_be_num_type, &group_by_attr)
         }
-        &ArithExpr::Attr(ref attr) => check_attr(attr, table_set, is_having_cond),
+        &ArithExpr::BinaryExpr{ref lhs, ref rhs, ..} => {
+            try!(check_arith_expr(lhs, table_set, must_be_num_type, &group_by_attr));
+            check_arith_expr(rhs, table_set, must_be_num_type, &group_by_attr)
+        }
+        &ArithExpr::Attr(ref attr) => {
+            try!(check_attr(attr, table_set, &group_by_attr));
+            if must_be_num_type {
+                check_attr_num_type(attr, table_set)
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
-pub fn check_attr(attr : &AttributeExpr, table_set : &TableSet, is_having_cond : bool) -> SemResult {
-    match attr {
-        &AttributeExpr::TableAttr{ref table, ref attr} => Ok(()),
-        &AttributeExpr::AggreFuncCall{ref func, ref table, ref attr} => Ok(()),
+pub fn check_attr_num_type(attr_expr : &AttributeExpr, table_set : &TableSet) -> SemResult {
+    let (table, attr) = match attr_expr {
+        &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
+        &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
+    };
+    let attr = table_set.get_attr(table, attr).unwrap();
+    if let AttrType::Char{..} = attr.attr_type {
+        return Err(create_error(CompileErrorType::SemInvalidValueType,
+            format!("invalid attribute type: {}", attr_expr)));
+    }
+    Ok(())
+}
+
+pub fn check_attr(
+        attr_expr : &AttributeExpr,
+        table_set : &TableSet,
+        group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
+    let (table, attr) = match attr_expr {
+        &AttributeExpr::TableAttr{ref table, ref attr} => {
+            try!(check_attr_exist(table, attr, table_set));
+            (table, attr)
+        }
+        &AttributeExpr::AggreFuncCall{ref func, ref table, ref attr} => {
+            try!(check_aggre_func_name(func));
+            try!(check_attr_exist(table, attr, table_set));
+            if let &None = group_by_attr {
+                return Err(create_error(CompileErrorType::SemInvalidAggregateFunctionUse,
+                    format!("can't use {} in `where`", attr_expr)));
+            }
+            (table, attr)
+        }
+    };
+    let group_by_attr = match group_by_attr {
+        &Some(ref expr) => expr,
+        &None => return Ok(()),
+    };
+    if group_by_attr.0 != *table || group_by_attr.1 != *attr {
+        return Err(create_error(CompileErrorType::SemShouldUseGroupByAttribute,
+            format!("expected group by attribute {:?}, got {}", group_by_attr, attr_expr)))
+    }
+    Ok(())
+}
+
+pub fn check_attr_exist(table : &Option<String>, attr : &str, table_set : &TableSet) -> SemResult {
+    if table_set.get_attr(table, attr).is_some() {
+        Ok(())
+    } else {
+        Err(create_error(CompileErrorType::SemInvalidAttribute,
+            format!("{} not exist or multiple found", attr)))
     }
 }
 
-pub fn check_attr_exist(table : &str, attr : &str, table_set : &TableSet) {
+pub fn check_aggre_func_name(name : &String) -> SemResult {
+    let aggre_func_list = ["max", "min", "count", "sum"];
+    if aggre_func_list.into_iter().filter(|s| *name == s.to_string()).next().is_some() {
+        Ok(())
+    } else {
+        Err(create_error(CompileErrorType::SemInvalidAggreFuncName,
+            format!("invalid aggregate function name: {}, expected {:?}", name, aggre_func_list)))
+    }
 }
 
 pub fn check_create(stmt : &CreateStatement, table_set : &TableSet) -> SemResult {

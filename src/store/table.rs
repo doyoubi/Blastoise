@@ -61,8 +61,23 @@ impl<'a> TableSet<'a> {
             None => false,
         }
     }
-    pub fn attr_exist(&self, table : &str, attr : &str, table_set : &TableSet) {
-        
+    pub fn get_attr(&self, table : &Option<String>, attr : &str) -> Option<Attr> {
+        let mut table_list = Vec::new();
+        for (name, t) in self.tables.iter() {
+            if let Some(attr) = t.attr_list.iter().filter(|a| a.name == attr).next() {
+                if let &Some(ref table_name) = table {
+                    if *table_name == name.to_string() {
+                        table_list.push(attr.clone());
+                    }
+                } else {
+                    table_list.push(attr.clone());
+                }
+            }
+        }
+        match table_list.len() {
+            1 => table_list.pop(),
+            _ => None,  // not found or multiple attribute found
+        }
     }
     pub fn add_table(&mut self, table : Table) {
         self.tables.insert(table.name.clone(), table);

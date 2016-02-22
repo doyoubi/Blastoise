@@ -24,6 +24,11 @@ pub enum CompileErrorType {
     SemMultiplePrimary,
     SemNoPrimary,
     SemInvalidValueType,
+    SemInvalidAggreFuncName,
+    SemInvalidAttribute,
+    SemShouldUseGroupByAttribute,
+    SemInvalidAggregateFunctionUse,
+    SemAttributeNotNullable,
 }
 
 #[derive(Debug)]

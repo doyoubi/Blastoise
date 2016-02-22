@@ -33,7 +33,7 @@ macro_rules! assert_err {
 }
 
 fn add_table(table_set : &mut TableSet) {
-    let table = Table{
+    let t1 = Table{
         name : "author".to_string(),
         attr_list : vec![
             Attr{
@@ -50,7 +50,25 @@ fn add_table(table_set : &mut TableSet) {
             }
         ],
     };
-    table_set.add_table(table);
+    let t2 = Table{
+        name : "book".to_string(),
+        attr_list : vec![
+            Attr{
+                name : "id".to_string(),
+                attr_type : AttrType::Int,
+                primary : true,
+                nullable : false,
+            },
+            Attr{
+                name : "author_id".to_string(),
+                attr_type : AttrType::Int,
+                primary : true,
+                nullable : true,
+            }
+        ]
+    };
+    table_set.add_table(t1);
+    table_set.add_table(t2);
 }
 
 #[test]
@@ -110,25 +128,68 @@ fn test_check_condition() {
     {// comparasion type check
         let mut table_set = TableSet::new();
         let condition = gen_result!(ConditionExpr::parse, "1 < 0 or 1 = 2");
-        assert_ok!(check_condition(&condition, &table_set, false));
+        assert_ok!(check_condition(&condition, &table_set, &None));
 
         let condition = gen_result!(ConditionExpr::parse, "1 = null");
-        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
         let condition = gen_result!(ConditionExpr::parse, "1 < \"i am string\"");
-        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
         
         let condition = gen_result!(ConditionExpr::parse, "\"aaa\" = \"bbb\"");
-        assert_ok!(check_condition(&condition, &table_set, false));
+        assert_ok!(check_condition(&condition, &table_set, &None));
 
         add_table(&mut table_set);
-        let condition = gen_result!(ConditionExpr::parse, "id is not null and id is null");
-        assert_ok!(check_condition(&condition, &table_set, false));
+        let condition = gen_result!(ConditionExpr::parse, "author_id is not null");
+        assert_ok!(check_condition(&condition, &table_set, &None));
 
-        let condition = gen_result!(ConditionExpr::parse, "id is 1");
-        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+        let condition = gen_result!(ConditionExpr::parse, "author_id is 1");
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
         let condition = gen_result!(ConditionExpr::parse, "2 is null");
-        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+    }
+    {// attirbute check
+        let mut table_set = TableSet::new();
+        let condition = gen_result!(ConditionExpr::parse, "a is null");
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidAttribute);
+
+        add_table(&mut table_set);
+        let condition = gen_result!(ConditionExpr::parse, "author_id is null");
+        assert_ok!(check_condition(&condition, &table_set, &None));
+
+        let condition = gen_result!(ConditionExpr::parse, "book.author_id is null");
+        assert_ok!(check_condition(&condition, &table_set, &None));
+
+        let condition = gen_result!(ConditionExpr::parse, "book.id > 1");
+        assert_ok!(check_condition(&condition, &table_set,
+            &Some((Some("book".to_string()), "id".to_string()))));
+        assert_err!(check_condition(&condition, &table_set,
+            &Some((Some("book".to_string()), "author_id".to_string()))),
+            CompileErrorType::SemShouldUseGroupByAttribute);
+
+        let condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
+        assert_ok!(check_condition(&condition, &table_set,
+            &Some((Some("book".to_string()), "id".to_string()))));
+
+        let condition = gen_result!(ConditionExpr::parse, "invalid_func(book.id) > 1");
+        assert_err!(check_condition(&condition, &table_set,
+            &Some((Some("book".to_string()), "id".to_string()))),
+            CompileErrorType::SemInvalidAggreFuncName);
+
+        let condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
+        assert_err!(check_condition(&condition, &table_set, &None),
+            CompileErrorType::SemInvalidAggregateFunctionUse);
+
+        let condition = gen_result!(ConditionExpr::parse, "name > 0");
+        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+
+        let condition = gen_result!(ConditionExpr::parse, "name is null");
+        assert_err!(check_condition(&condition, &table_set, &None),
+            CompileErrorType::SemAttributeNotNullable);
+
+        let condition = gen_result!(ConditionExpr::parse, "id is null");
+        assert_err!(check_condition(&condition, &table_set, &None),
+            CompileErrorType::SemInvalidAttribute);
     }
 }
