@@ -1,4 +1,5 @@
-use ::store::table::{TableManager, Table, Attr, AttrType};
+use ::store::table::{TableSet, Table, Attr, AttrType};
+use ::parser::condition::ConditionExpr;
 use ::parser::compile_error::CompileErrorType;
 use ::parser::select::SelectStatement;
 use ::parser::update::UpdateStatement;
@@ -8,6 +9,7 @@ use ::parser::create_drop::{CreateStatement, DropStatement};
 use ::parser::sem_check::{
     check_drop,
     check_create,
+    check_condition,
 };
 
 
@@ -30,7 +32,7 @@ macro_rules! assert_err {
     })
 }
 
-fn add_table(manager : &mut TableManager) {
+fn add_table(table_set : &mut TableSet) {
     let table = Table{
         name : "author".to_string(),
         attr_list : vec![
@@ -48,16 +50,16 @@ fn add_table(manager : &mut TableManager) {
             }
         ],
     };
-    manager.add_table(table);
+    table_set.add_table(table);
 }
 
 #[test]
 fn test_check_drop() {
     let drop_stmt = gen_result!(DropStatement::parse, "drop table author");
-    let mut manager = TableManager::new();
-    assert_err!(check_drop(&drop_stmt, &manager), CompileErrorType::SemTableNotExist);
-    add_table(&mut manager);
-    assert_ok!(check_drop(&drop_stmt, &manager));
+    let mut table_set = TableSet::new();
+    assert_err!(check_drop(&drop_stmt, &table_set), CompileErrorType::SemTableNotExist);
+    add_table(&mut table_set);
+    assert_ok!(check_drop(&drop_stmt, &table_set));
 }
 
 #[test]
@@ -65,39 +67,68 @@ fn test_check_create() {
     {// table exist
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary)");
-        let mut manager = TableManager::new();
-        assert_ok!(check_create(&create_stmt, &manager));
-        add_table(&mut manager);
-        assert_err!(check_create(&create_stmt, &manager), CompileErrorType::SemTableExist);
+        let mut table_set = TableSet::new();
+        assert_ok!(check_create(&create_stmt, &table_set));
+        add_table(&mut table_set);
+        assert_err!(check_create(&create_stmt, &table_set), CompileErrorType::SemTableExist);
     }
     {// unique primary
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary)");
-        let manager = TableManager::new();
-        assert_ok!(check_create(&create_stmt, &manager));
+        let table_set = TableSet::new();
+        assert_ok!(check_create(&create_stmt, &table_set));
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary, num int not null primary)");
-        assert_err!(check_create(&create_stmt, &manager), CompileErrorType::SemMultiplePrimary);
+        assert_err!(check_create(&create_stmt, &table_set), CompileErrorType::SemMultiplePrimary);
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int)");
-        assert_err!(check_create(&create_stmt, &manager), CompileErrorType::SemNoPrimary);
+        assert_err!(check_create(&create_stmt, &table_set), CompileErrorType::SemNoPrimary);
     }
     {// primary not null
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary)");
-        let manager = TableManager::new();
-        assert_ok!(check_create(&create_stmt, &manager));
+        let table_set = TableSet::new();
+        assert_ok!(check_create(&create_stmt, &table_set));
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int primary)");
-        assert_err!(check_create(&create_stmt, &manager), CompileErrorType::SemNullablePrimary);
+        assert_err!(check_create(&create_stmt, &table_set), CompileErrorType::SemNullablePrimary);
     }
     {// unique attribute
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary)");
-        let manager = TableManager::new();
-        assert_ok!(check_create(&create_stmt, &manager));
+        let table_set = TableSet::new();
+        assert_ok!(check_create(&create_stmt, &table_set));
         let create_stmt = gen_result!(CreateStatement::parse,
             "create table author(id int not null primary, id char(10))");
-        assert_err!(check_create(&create_stmt, &manager), CompileErrorType::SemDuplicateAttr);
+        assert_err!(check_create(&create_stmt, &table_set), CompileErrorType::SemDuplicateAttr);
+    }
+}
+
+#[test]
+fn test_check_condition() {
+    // arithmatic type correctness already guranteed by grammar
+    {// comparasion type check
+        let mut table_set = TableSet::new();
+        let condition = gen_result!(ConditionExpr::parse, "1 < 0 or 1 = 2");
+        assert_ok!(check_condition(&condition, &table_set, false));
+
+        let condition = gen_result!(ConditionExpr::parse, "1 = null");
+        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+
+        let condition = gen_result!(ConditionExpr::parse, "1 < \"i am string\"");
+        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+        
+        let condition = gen_result!(ConditionExpr::parse, "\"aaa\" = \"bbb\"");
+        assert_ok!(check_condition(&condition, &table_set, false));
+
+        add_table(&mut table_set);
+        let condition = gen_result!(ConditionExpr::parse, "id is not null and id is null");
+        assert_ok!(check_condition(&condition, &table_set, false));
+
+        let condition = gen_result!(ConditionExpr::parse, "id is 1");
+        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
+
+        let condition = gen_result!(ConditionExpr::parse, "2 is null");
+        assert_err!(check_condition(&condition, &table_set, false), CompileErrorType::SemInvalidValueType);
     }
 }

@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Formatter, Display};
 use std::rc::Rc;
 use std::result::Result::{Ok, Err};
-use super::common::ValueExpr;
+use super::common::{ValueExpr, ValueType};
 use super::lexer::{TokenIter, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList};
 use super::attribute::AttributeExpr;
@@ -16,7 +16,7 @@ use super::common::{
 
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum LogicOp {
+pub enum LogicOp {
     Or,
     And,
 }
@@ -32,7 +32,7 @@ impl Display for LogicOp {
 
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum CmpOp {
+pub enum CmpOp {
     LT,
     GT,
     LE,
@@ -60,7 +60,7 @@ impl Display for CmpOp {
 
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum ArithOp {
+pub enum ArithOp {
     Add,
     Sub,
     Mul,
@@ -101,7 +101,7 @@ pub type ParseCondResult = Result<ConditionExpr, ErrorList>;
 pub enum ConditionExpr {
     LogicExpr {
         lhs : CondRef,
-        rhs :CondRef,
+        rhs : CondRef,
         op : LogicOp,
     },
     NotExpr { operant : CondRef },
@@ -256,6 +256,13 @@ impl CmpOperantExpr {
             TokenType::StringLiteral | TokenType::Null =>
                 Ok(CmpOperantExpr::Value(try!(ValueExpr::parse(it)))),
             _ => Ok(CmpOperantExpr::Arith(try!(ArithExpr::parse(it)))),
+        }
+    }
+    pub fn get_type(&self) -> ValueType {
+        // will convert int to float
+        match self {
+            &CmpOperantExpr::Arith(..) => ValueType::Float,
+            &CmpOperantExpr::Value(ValueExpr{value_type, ..}) => value_type,
         }
     }
 }

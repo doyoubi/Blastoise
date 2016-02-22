@@ -23,6 +23,7 @@ pub enum CompileErrorType {
     SemNullablePrimary,
     SemMultiplePrimary,
     SemNoPrimary,
+    SemInvalidValueType,
 }
 
 #[derive(Debug)]

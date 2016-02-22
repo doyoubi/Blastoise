@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use rustc_serialize::json::{encode, decode};
 use ::store::table::{Table, Attr, AttrType, TableManager};
 use ::test::utils::remove_blanks;
@@ -116,4 +117,16 @@ fn test_get_table() {
     let table = table.read().unwrap();
     assert_eq!(table.name, "book");
     assert_eq!(table.attr_list.len(), 2);
+}
+
+#[test]
+fn test_gen_table_set() {
+    let manager = TableManager::from_json(JSON_DATA);
+    let mut lock_table = HashMap::new();
+    lock_table.insert("author".to_string(), false);
+    lock_table.insert("book".to_string(), true);
+    let set = manager.gen_table_set(&lock_table);
+    assert_eq!(set.tables.len(), 2);
+    assert_eq!(set.need_write("author"), false);
+    assert_eq!(set.need_write("book"), true);
 }
