@@ -10,7 +10,7 @@ use super::insert::InsertStatement;
 use super::delete::DeleteStatement;
 use super::create_drop::{CreateStatement, DropStatement};
 use super::condition::{ConditionExpr, ArithExpr, CmpOperantExpr, CmpOp};
-use ::store::table::{TableSet, AttrType};
+use ::store::table::{TableSet, AttrType, Attr};
 
 
 pub type SemResult = Result<(), ErrorList>;
@@ -30,9 +30,24 @@ pub fn check_sem(statement : Statement, table_set : &TableSet) -> SemResult {
 pub fn check_select(stmt : &SelectStatement, table_set : &TableSet) -> SemResult {
     unimplemented!()
 }
+
 pub fn check_update(stmt : &UpdateStatement, table_set : &TableSet) -> SemResult {
-    unimplemented!()
+    try!(check_table_exist(&stmt.table, table_set));
+    if let Some(ref cond) = stmt.where_condition {
+        try!(check_condition(cond, table_set, &None));
+    }
+    for assign in &stmt.set_list {
+        try!(check_attr_exist(&Some(stmt.table.clone()), &assign.attr, table_set));
+        let attr = table_set.get_attr(&Some(stmt.table.clone()), &assign.attr).unwrap();
+        if attr.primary {
+            return Err(create_error(CompileErrorType::SemChangePrimaryAttr,
+                format!("can't change primary attribute: {}", attr.name)));
+        }
+        try!(check_assign(&assign.value, &attr));
+    }
+    Ok(())
 }
+
 pub fn check_insert(stmt : &InsertStatement, table_set : &TableSet) -> SemResult {
     try!(check_table_exist(&stmt.table, table_set));
     let value_list  = &stmt.value_list;
@@ -43,30 +58,36 @@ pub fn check_insert(stmt : &InsertStatement, table_set : &TableSet) -> SemResult
                 attr_list.len(), value_list.len())));
     }
     for (value, attr) in value_list.iter().zip(attr_list.iter()) {
-        match (value.value_type, attr.attr_type) {
-            (ValueType::Integer, AttrType::Int)
-            | (ValueType::Integer, AttrType::Float)
-            | (ValueType::Float, AttrType::Float) => (),
-            (ValueType::String, AttrType::Char{len}) => {
-                if value.value.len() > len {
-                    return Err(create_error(CompileErrorType::SemInvalidInsertCharLen,
-                        format!("invalid char len, expected {}, found {}", len, value.value.len())));
-                }
-            }
-            (ValueType::Null, _) => {
-                if !attr.nullable {
-                    return Err(create_error(CompileErrorType::SemAttributeNotNullable,
-                        format!("attribute {} is not nullable", attr.name)));
-                }
-            }
-            (value_type, attr_type) =>
-                return Err(create_error(CompileErrorType::SemInvalidInsertValueType,
-                    format!("invalid insert value type, attribute type is {:?}, found {:?}",
-                        attr_type, value_type))),
-        }
+        try!(check_assign(value, attr));
     }
     Ok(())
 }
+
+pub fn check_assign(value : &ValueExpr, attr : &Attr) -> SemResult {
+    match (value.value_type, attr.attr_type) {
+            (ValueType::Integer, AttrType::Int)
+        | (ValueType::Integer, AttrType::Float)
+        | (ValueType::Float, AttrType::Float) => (),
+        (ValueType::String, AttrType::Char{len}) => {
+            if value.value.len() > len {
+                return Err(create_error(CompileErrorType::SemInvalidInsertCharLen,
+                    format!("invalid char len, expected {}, found {}", len, value.value.len())));
+            }
+        }
+        (ValueType::Null, _) => {
+            if !attr.nullable {
+                return Err(create_error(CompileErrorType::SemAttributeNotNullable,
+                    format!("attribute {} is not nullable", attr.name)));
+            }
+        }
+        (value_type, attr_type) =>
+            return Err(create_error(CompileErrorType::SemInvalidInsertValueType,
+                format!("invalid insert value type, attribute type is {:?}, found {:?}",
+                    attr_type, value_type))),
+    }
+    Ok(())
+}
+
 pub fn check_delete(stmt : &DeleteStatement, table_set : &TableSet) -> SemResult {
     try!(check_table_exist(&stmt.table, table_set));
     match &stmt.where_condition {

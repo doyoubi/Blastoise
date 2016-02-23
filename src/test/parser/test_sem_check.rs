@@ -11,6 +11,7 @@ use ::parser::sem_check::{
     check_create,
     check_condition,
     check_insert,
+    check_update,
 };
 
 
@@ -63,7 +64,13 @@ fn add_table(table_set : &mut TableSet) {
             Attr{
                 name : "author_id".to_string(),
                 attr_type : AttrType::Int,
-                primary : true,
+                primary : false,
+                nullable : true,
+            },
+            Attr{
+                name : "name".to_string(),
+                attr_type : AttrType::Char{ len : 10},
+                primary : false,
                 nullable : true,
             }
         ]
@@ -182,10 +189,10 @@ fn test_check_condition() {
         assert_err!(check_condition(&condition, &table_set, &None),
             CompileErrorType::SemInvalidAggregateFunctionUse);
 
-        let condition = gen_result!(ConditionExpr::parse, "name > 0");
+        let condition = gen_result!(ConditionExpr::parse, "book.name > 0");
         assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
-        let condition = gen_result!(ConditionExpr::parse, "name is null");
+        let condition = gen_result!(ConditionExpr::parse, "author.name is null");
         assert_err!(check_condition(&condition, &table_set, &None),
             CompileErrorType::SemAttributeNotNullable);
 
@@ -199,13 +206,13 @@ fn test_check_condition() {
 fn test_check_insert() {
     let mut table_set = TableSet::new();
     add_table(&mut table_set);
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2)");
+    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\")");
     assert_ok!(check_insert(&insert, &table_set));
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, 3)");
+    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\", 3)");
     assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemInvalidInsertValuesNum);
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2.0)");
+    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2.0, \"book name\")");
     assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemInvalidInsertValueType);
 
     let insert = gen_result!(InsertStatement::parse, "insert author values(1, \"doyoubi\")");
@@ -217,6 +224,28 @@ fn test_check_insert() {
     let insert = gen_result!(InsertStatement::parse, "insert author values(1, null)");
     assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemAttributeNotNullable);
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, null)");
+    let insert = gen_result!(InsertStatement::parse, "insert book values(1, null, \"book name\")");
     assert_ok!(check_insert(&insert, &table_set));
+}
+
+#[test]
+fn test_check_update() {
+    let mut table_set = TableSet::new();
+    add_table(&mut table_set);
+
+    let update = gen_result!(UpdateStatement::parse,
+        "update book set author_id = 2, name = \"doyoubi\" where book.id = 1");
+    assert_ok!(check_update(&update, &table_set));
+
+    let update = gen_result!(UpdateStatement::parse, "update book set id = 1");
+    assert_err!(check_update(&update, &table_set), CompileErrorType::SemChangePrimaryAttr);
+
+    let update = gen_result!(UpdateStatement::parse, "update book set invalid_attr = 1");
+    assert_err!(check_update(&update, &table_set), CompileErrorType::SemInvalidAttribute);
+
+    let update = gen_result!(UpdateStatement::parse, "update book set author_id = 2.2");
+    assert_err!(check_update(&update, &table_set), CompileErrorType::SemInvalidInsertValueType);
+
+    let update = gen_result!(UpdateStatement::parse, "update author set name = null");
+    assert_err!(check_update(&update, &table_set), CompileErrorType::SemAttributeNotNullable);
 }
