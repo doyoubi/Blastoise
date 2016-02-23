@@ -33,6 +33,7 @@ pub enum CompileErrorType {
     SemInvalidInsertValueType,
     SemInvalidInsertCharLen,
     SemChangePrimaryAttr,
+    SemSelectAllWithGroupBy,
 }
 
 #[derive(Debug)]

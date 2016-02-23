@@ -12,6 +12,7 @@ use ::parser::sem_check::{
     check_condition,
     check_insert,
     check_update,
+    check_select,
 };
 
 
@@ -248,4 +249,55 @@ fn test_check_update() {
 
     let update = gen_result!(UpdateStatement::parse, "update author set name = null");
     assert_err!(check_update(&update, &table_set), CompileErrorType::SemAttributeNotNullable);
+}
+
+#[test]
+fn test_check_select() {
+    let mut table_set = TableSet::new();
+    add_table(&mut table_set);
+
+    let select = gen_result!(SelectStatement::parse,
+        "select book.id, book.name from book where book.id > 1");
+    assert_ok!(check_select(&select, &table_set));
+
+    let select = gen_result!(SelectStatement::parse,
+        "select author_id, min(book.author_id) from book where book.id > 1 \
+        group by author_id having min(author_id) > 2 and author_id > 3");
+    assert_ok!(check_select(&select, &table_set));
+
+    let select = gen_result!(SelectStatement::parse,
+        "select book.author_id, min(book.author_id) from book where book.id > 1 \
+        group by author_id having min(book.id) > 2 and book.id > 3");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+
+    let select = gen_result!(SelectStatement::parse,
+        "select book.id, min(book.id) from book where book.id > 1 \
+        group by author_id having min(author_id) > 2 and author_id > 3");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+
+    let select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+
+    let select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+
+    let select = gen_result!(SelectStatement::parse, "select * from book group by book.name");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemSelectAllWithGroupBy);
+
+    let select = gen_result!(SelectStatement::parse, "select num from book");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+
+    let select = gen_result!(SelectStatement::parse, "select book.name from book order by book.id");
+    assert_ok!(check_select(&select, &table_set));
+
+    let select = gen_result!(SelectStatement::parse, "select book.name from book order by num");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+
+    let select = gen_result!(SelectStatement::parse,
+        "select book.name from book group by book.name order by book.id");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+
+    let select = gen_result!(SelectStatement::parse,
+        "select book.id from book group by book.name order by book.name");
+    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
 }

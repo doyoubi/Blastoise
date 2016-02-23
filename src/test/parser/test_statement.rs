@@ -89,6 +89,11 @@ fn test_parse_select_statement() {
         SelectStatement::parse,
         "select attr from huang order by doyoubi"
     );
+    test_by_display_str(
+        "select attr from huang group by attr order by doyoubi", 10,
+        SelectStatement::parse,
+        "select attr from huang group by attr order by doyoubi"
+    );
 }
 
 #[test]

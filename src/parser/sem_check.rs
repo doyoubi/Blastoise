@@ -4,7 +4,7 @@ use super::attribute::AttributeExpr;
 use super::lexer::{Token, TokenRef, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList, ErrorRef};
 use super::common::{Statement, ValueExpr, ValueType};
-use super::select::SelectStatement;
+use super::select::{SelectStatement, GroupbyHaving, SelectExpr};
 use super::update::UpdateStatement;
 use super::insert::InsertStatement;
 use super::delete::DeleteStatement;
@@ -28,7 +28,40 @@ pub fn check_sem(statement : Statement, table_set : &TableSet) -> SemResult {
 }
 
 pub fn check_select(stmt : &SelectStatement, table_set : &TableSet) -> SemResult {
-    unimplemented!()
+    if let Some(ref cond) = stmt.where_condition {
+        try!(check_condition(cond, table_set, &None));
+    }
+    if let Some(GroupbyHaving{ref attr, ref having_condition}) = stmt.groupby_having {
+        let (table, attr) = attr.get_attr();
+        try!(check_attr_exist(table, attr, table_set));
+        let group_by_attr = Some((table.clone(), attr.clone()));
+        if let &Some(ref cond) = having_condition {
+            try!(check_condition(cond, table_set, &group_by_attr));
+        }
+        match stmt.select_expr {
+            SelectExpr::AllAttribute =>
+                return Err(create_error(CompileErrorType::SemSelectAllWithGroupBy,
+                    "can't select all when using group by".to_string())),
+            SelectExpr::AttrList(ref attr_list) => {
+                for attr_expr in attr_list {
+                    try!(check_attr(attr_expr, table_set, &group_by_attr));
+                }
+            }
+        }
+        if let Some(ref attr) = stmt.order_by_attr {
+            try!(check_attr(attr, table_set, &group_by_attr));
+        }
+    } else {
+        if let SelectExpr::AttrList(ref attr_list) = stmt.select_expr {
+            for attr_expr in attr_list {
+                try!(check_attr(attr_expr, table_set, &None));
+            }
+        }
+        if let Some(ref attr) = stmt.order_by_attr {
+            try!(check_attr(attr, table_set, &None));
+        }
+    }
+    Ok(())
 }
 
 pub fn check_update(stmt : &UpdateStatement, table_set : &TableSet) -> SemResult {
@@ -157,11 +190,8 @@ pub fn check_condition(
     }
 }
 
-pub fn check_is_nullable(attr : &AttributeExpr, table_set : &TableSet) -> SemResult {
-    let (table, attr) = match attr {
-        &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
-        &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
-    };
+pub fn check_is_nullable(attr_expr : &AttributeExpr, table_set : &TableSet) -> SemResult {
+    let (table, attr) = attr_expr.get_attr();
     try!(check_attr_exist(table, attr, table_set));
     if !table_set.get_attr(table, attr).unwrap().nullable {
         return Err(create_error(CompileErrorType::SemAttributeNotNullable,
@@ -200,10 +230,7 @@ pub fn check_arith_expr(
 }
 
 pub fn check_attr_num_type(attr_expr : &AttributeExpr, table_set : &TableSet) -> SemResult {
-    let (table, attr) = match attr_expr {
-        &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
-        &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
-    };
+    let (table, attr) = attr_expr.get_attr();
     let attr = table_set.get_attr(table, attr).unwrap();
     if let AttrType::Char{..} = attr.attr_type {
         return Err(create_error(CompileErrorType::SemInvalidValueType,
@@ -235,7 +262,9 @@ pub fn check_attr(
         &Some(ref expr) => expr,
         &None => return Ok(()),
     };
-    if group_by_attr.0 != *table || group_by_attr.1 != *attr {
+    // unique already guranteed
+    if (!is_match!(group_by_attr.0, None) && !is_match!(table, &None) && group_by_attr.0 != *table)
+            || group_by_attr.1 != *attr {
         return Err(create_error(CompileErrorType::SemShouldUseGroupByAttribute,
             format!("expected group by attribute {:?}, got {}", group_by_attr, attr_expr)))
     }

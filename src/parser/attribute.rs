@@ -83,4 +83,11 @@ impl AttributeExpr {
             attr : attr_name,
         })
     }
+    
+    pub fn get_attr(&self) -> (&Option<String>, &String) {
+        match self {
+            &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
+            &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
+        }
+    }
 }

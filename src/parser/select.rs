@@ -15,6 +15,7 @@ use super::common::{
     concat_format,
     concat_error_list,
     parse_list_helper,
+    align_iter,
 };
 
 
@@ -172,8 +173,12 @@ impl GroupbyHaving {
         try!(consume_next_token_with_type(it, TokenType::Group));
         try!(consume_next_token_with_type(it, TokenType::By));
         let attr = try!(AttributeExpr::parse(it));
-        match GroupbyHaving::parse_having(it) {
-            Ok(cond) => Ok(GroupbyHaving{ attr : attr, having_condition : Some(cond) }),
+        let mut tmp = it.clone();
+        match GroupbyHaving::parse_having(&mut tmp) {
+            Ok(cond) => {
+                align_iter(it, &mut tmp);
+                Ok(GroupbyHaving{ attr : attr, having_condition : Some(cond) })
+            }
             Err(..) => Ok(GroupbyHaving{ attr : attr, having_condition : None }),
         }
     }
