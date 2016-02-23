@@ -15,7 +15,7 @@ use super::common::{
 
 #[derive(Debug)]
 pub struct DeleteStatement {
-    table : String,
+    pub table : String,
     pub where_condition : Option<ConditionExpr>,
 }
 

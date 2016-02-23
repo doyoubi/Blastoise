@@ -29,6 +29,9 @@ pub enum CompileErrorType {
     SemShouldUseGroupByAttribute,
     SemInvalidAggregateFunctionUse,
     SemAttributeNotNullable,
+    SemInvalidInsertValuesNum,
+    SemInvalidInsertValueType,
+    SemInvalidInsertCharLen,
 }
 
 #[derive(Debug)]

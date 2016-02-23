@@ -34,10 +34,45 @@ pub fn check_update(stmt : &UpdateStatement, table_set : &TableSet) -> SemResult
     unimplemented!()
 }
 pub fn check_insert(stmt : &InsertStatement, table_set : &TableSet) -> SemResult {
-    unimplemented!()
+    try!(check_table_exist(&stmt.table, table_set));
+    let value_list  = &stmt.value_list;
+    let attr_list = table_set.gen_attr_list(&stmt.table);  // table should exist
+    if attr_list.len() != value_list.len() {
+        return Err(create_error(CompileErrorType::SemInvalidInsertValuesNum,
+            format!("invalid insert values number, expected {}, found {}",
+                attr_list.len(), value_list.len())));
+    }
+    for (value, attr) in value_list.iter().zip(attr_list.iter()) {
+        match (value.value_type, attr.attr_type) {
+            (ValueType::Integer, AttrType::Int)
+            | (ValueType::Integer, AttrType::Float)
+            | (ValueType::Float, AttrType::Float) => (),
+            (ValueType::String, AttrType::Char{len}) => {
+                if value.value.len() > len {
+                    return Err(create_error(CompileErrorType::SemInvalidInsertCharLen,
+                        format!("invalid char len, expected {}, found {}", len, value.value.len())));
+                }
+            }
+            (ValueType::Null, _) => {
+                if !attr.nullable {
+                    return Err(create_error(CompileErrorType::SemAttributeNotNullable,
+                        format!("attribute {} is not nullable", attr.name)));
+                }
+            }
+            (value_type, attr_type) =>
+                return Err(create_error(CompileErrorType::SemInvalidInsertValueType,
+                    format!("invalid insert value type, attribute type is {:?}, found {:?}",
+                        attr_type, value_type))),
+        }
+    }
+    Ok(())
 }
 pub fn check_delete(stmt : &DeleteStatement, table_set : &TableSet) -> SemResult {
-    unimplemented!()
+    try!(check_table_exist(&stmt.table, table_set));
+    match &stmt.where_condition {
+        &Some(ref cond) => check_condition(cond, table_set, &None),
+        &None => Ok(()),
+    }
 }
 
 pub fn check_condition(

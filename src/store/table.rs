@@ -79,6 +79,10 @@ impl<'a> TableSet<'a> {
             _ => None,  // not found or multiple attribute found
         }
     }
+    pub fn gen_attr_list(&self, table : &String) -> Vec<Attr> {
+        // table should exist
+        self.tables.get(table).unwrap().attr_list.clone()
+    }
     pub fn add_table(&mut self, table : Table) {
         self.tables.insert(table.name.clone(), table);
     }
