@@ -137,6 +137,9 @@ impl TableManager {
     pub fn add_table(&mut self, table : Table) {
         self.tables.insert(table.name.clone(), Arc::new(RwLock::new(table)));
     }
+    pub fn remove_table(&mut self, table : &String) {
+        self.tables.remove(table);
+    }
     pub fn get_table(&self, name : &str) -> Option<TableRef> {
         match self.tables.get(name) {
             Some(table_ref) => Some(table_ref.clone()),

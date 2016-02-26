@@ -9,12 +9,12 @@ use ::parser::{
     // UpdateStatement,
     // DeleteStatement,
     CreateStatement,
-    // DropStatement,
+    DropStatement,
 };
 use ::store::table::{TableSet, TableManagerRef, TableManager};
 use super::iter::ExecIterRef;
 use super::error::ExecError;
-use super::create_drop::CreateTable;
+use super::create_drop::{CreateTable, DropTable};
 
 
 pub type PlanResult = Result<ExecIterRef, ExecError>;
@@ -22,12 +22,17 @@ pub type PlanResult = Result<ExecIterRef, ExecError>;
 pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef) -> PlanResult {
     match stmt {
         Statement::Create(create) => gen_create_plan(create, table_manager),
+        Statement::Drop(drop) => gen_drop_plan(drop, table_manager),
         _ => unimplemented!(),
     }
 }
 
 pub fn gen_create_plan(stmt : CreateStatement, table_manager : &TableManagerRef) -> PlanResult {
     Ok(CreateTable::new(stmt, table_manager))
+}
+
+pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> PlanResult {
+    Ok(DropTable::new(stmt, table_manager))
 }
 
 pub fn gen_table_set<'a>(stmt : &Statement, table_manager : &'a MutexGuard<TableManager>) -> TableSet<'a> {

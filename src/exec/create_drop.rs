@@ -2,7 +2,7 @@ use std::boxed::Box;
 use std::option::Option;
 use ::store::table::{Table, Attr, AttrType, TableManagerRef};
 use ::store::tuple::TupleData;
-use ::parser::CreateStatement;
+use ::parser::{CreateStatement, DropStatement};
 use ::parser;
 use super::iter::{ExecIter, ExecIterRef};
 
@@ -55,6 +55,43 @@ impl ExecIter for CreateTable {
         {
             let mut manager = self.table_manager.lock().unwrap();
             manager.add_table(table);
+        }
+        self.finish = true;
+        None
+    }
+}
+
+
+#[derive(Debug)]
+pub struct DropTable {
+    stmt : DropStatement,
+    finish : bool,
+    table_manager : TableManagerRef,
+}
+
+impl DropTable {
+    pub fn new(stmt : DropStatement, table_manager : &TableManagerRef) -> ExecIterRef {
+        Box::new(DropTable{
+            finish : false,
+            stmt : stmt,
+            table_manager : table_manager.clone(),
+        })
+    }
+}
+
+impl ExecIter for DropTable {
+    fn open(&mut self) {}
+    fn close(&mut self) { self.finish = true; }
+    fn explain(&self) -> String {
+        format!("{}", self.stmt)
+    }
+    fn get_next(&mut self) -> Option<TupleData> {
+        if self.finish {
+            return None;
+        }
+        {
+            let mut manager = self.table_manager.lock().unwrap();
+            manager.remove_table(&self.stmt.table);
         }
         self.finish = true;
         None
