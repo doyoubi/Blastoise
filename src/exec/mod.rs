@@ -5,3 +5,5 @@ pub mod error;
 pub mod iter;
 #[allow(dead_code)]
 pub mod create_drop;
+#[allow(dead_code)]
+pub mod change;

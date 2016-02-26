@@ -127,6 +127,4 @@ fn test_gen_table_set() {
     lock_table.insert("book".to_string(), true);
     let set = manager.gen_table_set(&lock_table);
     assert_eq!(set.tables.len(), 2);
-    assert_eq!(set.need_write("author"), false);
-    assert_eq!(set.need_write("book"), true);
 }

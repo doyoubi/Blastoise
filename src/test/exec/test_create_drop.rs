@@ -12,12 +12,9 @@ macro_rules! gen_plan_helper {
         let tokens = gen_token!($input_str);
         let stmt = Statement::parse(&mut tokens.iter());
         let stmt = extract!(stmt, Ok(stmt), stmt);
-        {
-            let lock = $manager.lock().unwrap();
-            let table_set = gen_table_set(&stmt, &lock);
-            assert_pattern!(check_sem(&stmt, &table_set), Ok(()));
-        }
-        gen_plan(stmt, $manager).unwrap()
+        let table_set = gen_table_set(&stmt, &$manager);
+        assert_pattern!(check_sem(&stmt, &table_set), Ok(()));
+        gen_plan(stmt, $manager, table_set).unwrap()
     })
 }
 

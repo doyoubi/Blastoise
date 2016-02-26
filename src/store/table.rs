@@ -39,21 +39,32 @@ pub struct Table {
 }
 
 
-pub struct TableSet<'a> {
+pub struct TableSet {
     pub tables : HashMap<String, Table>,
-    table_refs : HashMap<String, TableRef>,
-    read_locks : HashMap<String, RwLockReadGuard<'a, Table>>,
-    write_locks : HashMap<String, RwLockWriteGuard<'a, Table>>,
+    table_refs : HashMap<String, (TableRef, bool)>,
 }
 
-impl<'a> TableSet<'a> {
-    pub fn new() -> TableSet<'a> {
+impl TableSet {
+    pub fn new() -> TableSet {
         TableSet{
             tables : HashMap::new(),
             table_refs : HashMap::new(),
-            read_locks : HashMap::new(),
-            write_locks : HashMap::new(),
         }
+    }
+    pub fn get_all_lock(&mut self) -> (Vec<RwLockReadGuard<Table>>, Vec<RwLockWriteGuard<Table>>) {
+        // should be inside the mutex guard of TableManager
+        let mut write_locks = Vec::new();
+        let mut read_locks = Vec::new();
+        for (name, &(ref table_ref, need_write)) in self.table_refs.iter() {
+            if need_write {
+                let guard = table_ref.write().unwrap();
+                write_locks.push(guard);
+            } else {
+                let guard = table_ref.read().unwrap();
+                read_locks.push(guard);
+            }
+        }
+        (read_locks, write_locks)
     }
     pub fn exist(&self, name : &str) -> bool {
         match self.tables.get(name) {
@@ -85,15 +96,6 @@ impl<'a> TableSet<'a> {
     }
     pub fn add_table(&mut self, table : Table) {
         self.tables.insert(table.name.clone(), table);
-    }
-    pub fn need_write(&self, name : &str) -> bool {
-        assert!(self.exist(name));
-        if let Some(..) = self.read_locks.get(name) {
-            return false;
-        } else if let Some(..) = self.write_locks.get(name) {
-            return true;
-        }
-        panic!("invalid state");
     }
 }
 
@@ -149,26 +151,18 @@ impl TableManager {
     pub fn gen_table_set(&self, lock_table : &HashMap<String, bool>) -> TableSet {
         let mut tables = HashMap::new();
         let mut table_refs = HashMap::new();
-        let mut write_locks = HashMap::new();
-        let mut read_locks = HashMap::new();
         for (name, need_write) in lock_table.iter() {
             let table_ref = self.tables.get(name).unwrap();
-            table_refs.insert(name.clone(), table_ref.clone());
             if *need_write {
-                let guard = table_ref.write().unwrap();
-                tables.insert(name.clone(), guard.clone());
-                write_locks.insert(name.clone(), guard);
+                table_refs.insert(name.clone(), (table_ref.clone(), true));
             } else {
-                let guard = table_ref.read().unwrap();
-                tables.insert(name.clone(), guard.clone());
-                read_locks.insert(name.clone(), guard);
+                table_refs.insert(name.clone(), (table_ref.clone(), false));
             }
+            tables.insert(name.clone(), table_ref.read().unwrap().clone());
         }
         TableSet{
             tables : tables,
             table_refs : table_refs,
-            read_locks : read_locks,
-            write_locks : write_locks,
         }
     }
 }

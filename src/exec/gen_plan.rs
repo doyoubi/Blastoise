@@ -3,6 +3,7 @@ use std::vec::Vec;
 use std::sync::MutexGuard;
 use ::parser::common::Statement;
 use ::parser::select::Relation;
+use ::parser::sem_check::check_sem;
 use ::parser::{
     SelectStatement,
     // InsertStatement,
@@ -19,7 +20,8 @@ use super::create_drop::{CreateTable, DropTable};
 
 pub type PlanResult = Result<ExecIterRef, ExecError>;
 
-pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef) -> PlanResult {
+pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, table_set : TableSet)
+        -> PlanResult {
     match stmt {
         Statement::Create(create) => gen_create_plan(create, table_manager),
         Statement::Drop(drop) => gen_drop_plan(drop, table_manager),
@@ -35,7 +37,7 @@ pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> 
     Ok(DropTable::new(stmt, table_manager))
 }
 
-pub fn gen_table_set<'a>(stmt : &Statement, table_manager : &'a MutexGuard<TableManager>) -> TableSet<'a> {
+pub fn gen_table_set(stmt : &Statement, table_manager : &TableManagerRef) -> TableSet {
     let mut rw_table = HashMap::new();
     match stmt {
         &Statement::Select(ref select) => {
@@ -51,18 +53,18 @@ pub fn gen_table_set<'a>(stmt : &Statement, table_manager : &'a MutexGuard<Table
         &Statement::Insert(ref insert) =>
             { rw_table.insert(insert.table.clone(), true); }
         &Statement::Create(ref create) => {
-            if let Some(..) = table_manager.get_table(&create.table) {
+            if let Some(..) = table_manager.lock().unwrap().get_table(&create.table) {
                 rw_table.insert(create.table.clone(), false);
             }
         }
         &Statement::Drop(ref drop) => {
-            if let Some(..) = table_manager.get_table(&drop.table) {
+            if let Some(..) = table_manager.lock().unwrap().get_table(&drop.table) {
                 rw_table.insert(drop.table.clone(), true);
             }
         }
 
     }
-    table_manager.gen_table_set(&rw_table)
+    table_manager.lock().unwrap().gen_table_set(&rw_table)
 }
 
 fn gen_select_table_set_helper(stmt : &SelectStatement) -> Vec<String> {

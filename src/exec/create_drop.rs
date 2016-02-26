@@ -10,14 +10,14 @@ use super::iter::{ExecIter, ExecIterRef};
 #[derive(Debug)]
 pub struct CreateTable {
     stmt : CreateStatement,
-    finish : bool,
+    finished : bool,
     table_manager : TableManagerRef,
 }
 
 impl CreateTable {
     pub fn new(stmt : CreateStatement, table_manager : &TableManagerRef) -> ExecIterRef {
         Box::new(CreateTable{
-            finish : false,
+            finished : false,
             stmt : stmt,
             table_manager : table_manager.clone(),
         })
@@ -26,12 +26,12 @@ impl CreateTable {
 
 impl ExecIter for CreateTable {
     fn open(&mut self) {}
-    fn close(&mut self) { self.finish = true; }
+    fn close(&mut self) { self.finished = true; }
     fn explain(&self) -> String {
         format!("{}", self.stmt)
     }
     fn get_next(&mut self) -> Option<TupleData> {
-        if self.finish {
+        if self.finished {
             return None;
         }
         let mut attr_list = Vec::new();
@@ -56,7 +56,7 @@ impl ExecIter for CreateTable {
             let mut manager = self.table_manager.lock().unwrap();
             manager.add_table(table);
         }
-        self.finish = true;
+        self.finished = true;
         None
     }
 }
@@ -65,14 +65,14 @@ impl ExecIter for CreateTable {
 #[derive(Debug)]
 pub struct DropTable {
     stmt : DropStatement,
-    finish : bool,
+    finished : bool,
     table_manager : TableManagerRef,
 }
 
 impl DropTable {
     pub fn new(stmt : DropStatement, table_manager : &TableManagerRef) -> ExecIterRef {
         Box::new(DropTable{
-            finish : false,
+            finished : false,
             stmt : stmt,
             table_manager : table_manager.clone(),
         })
@@ -81,19 +81,19 @@ impl DropTable {
 
 impl ExecIter for DropTable {
     fn open(&mut self) {}
-    fn close(&mut self) { self.finish = true; }
+    fn close(&mut self) { self.finished = true; }
     fn explain(&self) -> String {
         format!("{}", self.stmt)
     }
     fn get_next(&mut self) -> Option<TupleData> {
-        if self.finish {
+        if self.finished {
             return None;
         }
         {
             let mut manager = self.table_manager.lock().unwrap();
             manager.remove_table(&self.stmt.table);
         }
-        self.finish = true;
+        self.finished = true;
         None
     }
 }
