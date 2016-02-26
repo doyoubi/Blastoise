@@ -21,3 +21,9 @@ pub mod delete;
 pub mod create_drop;
 #[allow(dead_code)]
 pub mod sem_check;
+
+pub use self::select::SelectStatement;
+pub use self::update::UpdateStatement;
+pub use self::insert::InsertStatement;
+pub use self::delete::DeleteStatement;
+pub use self::create_drop::{CreateStatement, DropStatement};

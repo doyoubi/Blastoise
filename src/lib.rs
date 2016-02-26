@@ -6,5 +6,6 @@ mod utils;
 
 mod parser;
 mod store;
+mod exec;
 
 mod test;

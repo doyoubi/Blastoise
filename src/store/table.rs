@@ -106,6 +106,9 @@ pub struct TableManager {
 }
 
 impl TableManager {
+    pub fn make_ref() -> TableManagerRef {
+        TableManagerRef::new(Mutex::new(TableManager::new()))
+    }
     pub fn new() -> TableManager {
         TableManager{ tables : BTreeMap::new() }
     }

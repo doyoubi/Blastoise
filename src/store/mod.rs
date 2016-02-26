@@ -5,3 +5,5 @@ pub mod table;
 pub mod lru;
 #[allow(dead_code)]
 pub mod buffer;
+#[allow(dead_code)]
+pub mod tuple;

@@ -16,14 +16,14 @@ use ::store::table::{TableSet, AttrType, Attr};
 pub type SemResult = Result<(), ErrorList>;
 
 
-pub fn check_sem(statement : Statement, table_set : &TableSet) -> SemResult {
+pub fn check_sem(statement : &Statement, table_set : &TableSet) -> SemResult {
     match statement {
-        Statement::Select(ref stmt) => check_select(stmt, table_set),
-        Statement::Update(ref stmt) => check_update(stmt, table_set),
-        Statement::Insert(ref stmt) => check_insert(stmt, table_set),
-        Statement::Delete(ref stmt) => check_delete(stmt, table_set),
-        Statement::Create(ref stmt) => check_create(stmt, table_set),
-        Statement::Drop(ref stmt) => check_drop(stmt, table_set),
+        &Statement::Select(ref stmt) => check_select(stmt, table_set),
+        &Statement::Update(ref stmt) => check_update(stmt, table_set),
+        &Statement::Insert(ref stmt) => check_insert(stmt, table_set),
+        &Statement::Delete(ref stmt) => check_delete(stmt, table_set),
+        &Statement::Create(ref stmt) => check_create(stmt, table_set),
+        &Statement::Drop(ref stmt) => check_drop(stmt, table_set),
     }
 }
 
