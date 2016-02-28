@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::vec::Vec;
-use std::sync::MutexGuard;
 use ::parser::common::Statement;
 use ::parser::select::Relation;
-use ::parser::sem_check::check_sem;
 use ::parser::{
     SelectStatement,
     // InsertStatement,
@@ -12,7 +10,7 @@ use ::parser::{
     CreateStatement,
     DropStatement,
 };
-use ::store::table::{TableSet, TableManagerRef, TableManager};
+use ::store::table::{TableSet, TableManagerRef};
 use super::iter::ExecIterRef;
 use super::error::ExecError;
 use super::create_drop::{CreateTable, DropTable};
@@ -20,7 +18,7 @@ use super::create_drop::{CreateTable, DropTable};
 
 pub type PlanResult = Result<ExecIterRef, ExecError>;
 
-pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, table_set : TableSet)
+pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set : TableSet)
         -> PlanResult {
     match stmt {
         Statement::Create(create) => gen_create_plan(create, table_manager),

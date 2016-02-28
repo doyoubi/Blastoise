@@ -55,7 +55,7 @@ impl TableSet {
         // should be inside the mutex guard of TableManager
         let mut write_locks = Vec::new();
         let mut read_locks = Vec::new();
-        for (name, &(ref table_ref, need_write)) in self.table_refs.iter() {
+        for (_name, &(ref table_ref, need_write)) in self.table_refs.iter() {
             if need_write {
                 let guard = table_ref.write().unwrap();
                 write_locks.push(guard);

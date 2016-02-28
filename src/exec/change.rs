@@ -3,7 +3,6 @@ use std::option::Option;
 use ::store::table::{Table, Attr, AttrType, TableManagerRef};
 use ::store::tuple::TupleData;
 use ::parser::InsertStatement;
-use ::parser;
 use super::iter::{ExecIter, ExecIterRef};
 
 

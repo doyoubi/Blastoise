@@ -33,7 +33,7 @@ impl Hash for PageKey {
 }
 
 
-type PageRef = Arc<RwLock<Page>>;
+pub type PageRef = Arc<RwLock<Page>>;
 
 #[derive(Debug)]
 pub struct Page {

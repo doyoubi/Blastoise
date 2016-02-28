@@ -7,3 +7,7 @@ pub fn alloc_page() -> *mut c_void {
         memalign(size, size)        
     }
 }
+
+pub fn get_page_size() -> usize {
+    unsafe { sysconf(_SC_PAGESIZE) as usize }
+}

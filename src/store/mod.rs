@@ -7,3 +7,5 @@ pub mod lru;
 pub mod buffer;
 #[allow(dead_code)]
 pub mod tuple;
+#[allow(dead_code)]
+pub mod file;
