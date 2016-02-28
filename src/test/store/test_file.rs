@@ -9,7 +9,7 @@ fn test_page_header() {
     {
         let data;
         unsafe{
-            data = malloc(8);
+            data = malloc(2);
             write::<u32>(data as *mut u32, 233);
             write::<u32>(data.offset(4) as *mut u32, 666);
         }
@@ -25,7 +25,7 @@ fn test_page_header() {
     {
         let data;
         unsafe{
-            data = malloc(8);
+            data = malloc(2);
             write::<u32>(data as *mut u32, 111);
             write::<u32>(data.offset(4) as *mut u32, 222);
         }
@@ -37,6 +37,37 @@ fn test_page_header() {
         header.save_to_page_data();
         assert_eq!(unsafe{read::<u32>(data as *const u32)}, 233);
         assert_eq!(unsafe{read::<u32>(data.offset(4) as *const u32)}, 666);
+    }
+}
+
+#[test]
+fn test_bitmap()
+{
+    let data = unsafe{ malloc(3) };
+    let mut bitmap = BitMap{
+        data : data,
+        slot_sum : 24,
+    };
+    bitmap.clean();
+    for i in 0..24 {
+        assert!(!bitmap.is_inuse(i));
+    }
+    bitmap.set_inuse(8, true);
+    assert!(!bitmap.is_inuse(7));
+    assert!(bitmap.is_inuse(8));
+    assert!(!bitmap.is_inuse(9));
+    bitmap.set_inuse(8 + 7, true);
+    assert!(!bitmap.is_inuse(8 + 6));
+    assert!(bitmap.is_inuse(8 + 7));
+    assert!(!bitmap.is_inuse(8 + 8));
+    bitmap.set_inuse(8 + 3, true);
+    assert!(!bitmap.is_inuse(8 + 2));
+    assert!(bitmap.is_inuse(8 + 3));
+    assert!(!bitmap.is_inuse(8 + 4));
+    unsafe{
+        assert_eq!(read::<u8>(data as *const u8), 0);
+        assert_eq!(read::<u8>((data as *const u8).offset(1)), 137);
+        assert_eq!(read::<u8>((data as *const u8).offset(2)), 0);
     }
 }
 

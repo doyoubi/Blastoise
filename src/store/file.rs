@@ -37,14 +37,44 @@ impl PageHeader {
 
 #[derive(Debug)]
 pub struct BitMap {
-    data : DataPtr,
-    size : usize,
+    pub data : DataPtr,
+    pub slot_sum : usize,
 }
 
 impl BitMap {
+    pub fn get_byte_size(&self) -> usize {
+        (self.slot_sum + 7) / 8
+    }
     pub fn clean(&mut self) {
         unsafe{
-            write_bytes(self.data, 0, self.size);
+            write_bytes(self.data, 0, self.get_byte_size());
+        }
+    }
+    pub fn set_inuse(&mut self, index : usize, inuse : bool) {
+        assert!(index < self.slot_sum);
+        let byte_offset = index / 8;
+        let bit_offset = index % 8;
+        let n = 1 << bit_offset;
+        unsafe{
+            let p = self.data.offset(byte_offset as isize);
+            let a = read::<u8>(p as *const u8);
+            let b = if inuse {
+                a | n
+            } else {
+                a & (255 - n)
+            };
+            write::<u8>(p as *mut u8, b);
+        }
+    }
+    pub fn is_inuse(&self, index : usize) -> bool {
+        assert!(index < self.slot_sum);
+        let byte_offset = index / 8;
+        let bit_offset = index % 8;
+        let n = 1 << bit_offset;
+        unsafe{
+            let p = self.data.offset(byte_offset as isize);
+            let a = read::<u8>(p as *const u8);
+            (a & n) > 0
         }
     }
 }
@@ -75,7 +105,7 @@ impl FilePage {
             },
             bitmap : BitMap{
                 data : bitmap_data,
-                size : bitmap_size,
+                slot_sum : slot_sum,
             },
             tuple_data : tuple_data,
             mem_page : mem_page,
