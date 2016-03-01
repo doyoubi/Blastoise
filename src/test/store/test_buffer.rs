@@ -7,7 +7,7 @@ use ::store::buffer::{CacheSaver, Page, PagePool, DataPtr};
 
 
 #[derive(Debug, Copy, Clone)]
-struct MockCacheSaver {
+pub struct MockCacheSaver {
     pub fd : i32,
     pub page_index : u32,
     pub saved : bool,

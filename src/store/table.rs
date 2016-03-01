@@ -4,6 +4,7 @@ use std::option::Option;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex, Arc};
 use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
+use super::tuple::TupleDesc;
 
 
 macro_rules! unwrap {
@@ -36,6 +37,12 @@ pub type TableRef = Arc<RwLock<Table>>;
 pub struct Table {
     pub name : String,
     pub attr_list : Vec<Attr>,
+}
+
+impl Table {
+    pub fn gen_tuple_desc(&self) -> TupleDesc {
+        TupleDesc::new(&self.attr_list)
+    }
 }
 
 

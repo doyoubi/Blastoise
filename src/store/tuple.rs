@@ -5,7 +5,19 @@ use super::table::{AttrType, Attr};
 
 #[derive(Debug)]
 pub struct TupleDesc {
-    attr_desc : Vec<AttrType>,
+    pub attr_desc : Vec<AttrType>,
+    pub tuple_len : usize,
+}
+
+impl TupleDesc {
+    pub fn new(attr_list : &Vec<Attr>) -> TupleDesc {
+        let attr_desc = attr_list.iter().map(|attr| attr.attr_type.clone()).collect();
+        let tuple_len = tuple_len(attr_list);
+        TupleDesc{
+            attr_desc : attr_desc,
+            tuple_len : tuple_len,
+        }
+    }
 }
 
 #[derive(Debug)]

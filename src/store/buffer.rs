@@ -41,7 +41,7 @@ pub struct Page {
     pub page_index : u32,
     pub data : DataPtr,
     pub dirty : bool,
-    saver : CacheSaverRef,
+    pub saver : CacheSaverRef,
 }
 
 impl CacheValue for PageRef {

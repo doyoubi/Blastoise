@@ -1,9 +1,13 @@
 use std::fmt::{Display, Debug};
 use std::option::Option::None;
 use std::result::Result::Ok;
+use std::ptr::{write, read};
+use libc::malloc;
 use ::parser::lexer::TokenIter;
 use ::parser::compile_error::ErrorList;
 use ::parser::common::exp_list_to_string;
+use ::utils::pointer::{write_string, read_string};
+use ::store::buffer::DataPtr;
 
 
 macro_rules! gen_token {
@@ -60,4 +64,27 @@ pub fn remove_blanks(s : &str) -> String {
         };
     }
     result
+}
+
+// test code in ::utils
+#[test]
+fn test_raw_str_convert() {
+    unsafe{
+        let p : DataPtr = malloc(3);
+        let s = "ab".to_string();
+        write_string(p, &s, 3);
+        assert_eq!(read::<u8>(p as *const u8), 97);
+        assert_eq!(read::<u8>((p as *const u8).offset(1)), 98);
+        assert_eq!(read_string(p, 2), "ab");
+        assert_eq!(read_string(p, 3), "ab");
+    }
+    unsafe{
+        let p : DataPtr = malloc(3);
+        let s = "abc".to_string();
+        write_string(p, &s, 3);
+        assert_eq!(read::<u8>(p as *const u8), 97);
+        assert_eq!(read::<u8>((p as *const u8).offset(1)), 98);
+        assert_eq!(read::<u8>((p as *const u8).offset(2)), 99);
+        assert_eq!(read_string(p, 3), "abc");
+    }
 }
