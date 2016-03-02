@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::cell::Cell;
 use std::sync::{Arc, RwLock};
 use libc::malloc;
+use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::store::file::{TableFile, FilePage, BitMap, PageHeader};
 use ::store::buffer::{DataPtr, Page};
 use ::store::table::{Table, Attr, AttrType};
@@ -82,6 +83,8 @@ fn test_bitmap()
         bitmap.set_inuse(i, true);
     }
     assert_eq!(bitmap.get_first_free_slot(), 8 + 1);
+    bitmap.set_inuse(3, false);
+    assert_eq!(bitmap.get_first_free_slot(), 3);
 }
 
 fn gen_test_table() -> Table {
@@ -112,7 +115,6 @@ fn gen_test_table() -> Table {
 
 #[test]
 fn test_file_page_insert() {
-    // tuple: int, char(6), float
     let saver = Box::new(Rc::new(Cell::new(MockCacheSaver{
         fd : 0,  // not used
         page_index: 0,  // not used
@@ -120,14 +122,11 @@ fn test_file_page_insert() {
     })));
     let table = gen_test_table();
     let tuple_desc = table.gen_tuple_desc();
-    let mem_page = Arc::new(RwLock::new(Page{
-        fd : 1,
-        page_index : 2,
-        data : unsafe{ malloc(tuple_desc.tuple_len) },
-        dirty : false,
-        saver : saver,
-    }));
+    assert_eq!(tuple_desc.tuple_len, 16);
+    let mem_page = Arc::new(RwLock::new(Page::new(1, 2, saver)));
+    mem_page.write().unwrap().alloc();
     let mut file_page = FilePage::new(mem_page, tuple_desc.tuple_len);
+    file_page.init_empty_page();
     let mut value_list = vec![
         ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
         ValueExpr{ value : "abcdef".to_string(), value_type : ValueType::String },
@@ -144,6 +143,30 @@ fn test_file_page_insert() {
     file_page.insert(&value_list, &tuple_desc);
     assert_eq!(file_page.header.first_free_slot, 2);
     assert_eq!(file_page.is_inuse(1), true);
+
+    file_page.save_to_page();
+    let page = file_page.mem_page.read().unwrap();
+    let mut p = page.data;
+    assert_eq!(unsafe{ read(p as *const u32) }, 253);  // slot_sum
+    p = pointer_offset(p, 4);
+    assert_eq!(unsafe{ read(p as *const u32) }, 2);  // first_free_slot
+    p = pointer_offset(p, 4);
+    assert_eq!(unsafe{ read(p as *const u8) }, 3);  // bitmap
+    assert_eq!(unsafe{ read(pointer_offset(p, 4) as *const u8) }, 0);  // bitmap
+    p = pointer_offset(p, (253 + 7) / 8);
+    // first tuple
+    assert_eq!(unsafe{ read(p as *const u32) }, 233);  // tuple data: id
+    p = pointer_offset(p, 4);
+    assert_eq!(unsafe{ read_string(p, 6) }, "abcdef");  // tuple data: content
+    p = pointer_offset(p, 8);
+    assert_eq!(unsafe{ read(p as *const f32) }, 666.666);  // tuple data: score
+    p = pointer_offset(p, 4);
+    // second tuple
+    assert_eq!(unsafe{ read(p as *const u32) }, 777);  // tuple data: id
+    p = pointer_offset(p, 4);
+    assert_eq!(unsafe{ read_string(p, 6) }, "dyb");  // tuple data: content
+    p = pointer_offset(p, 8);
+    assert_eq!(unsafe{ read(p as *const f32) }, 12345.777);  // tuple data: score
 }
 
 #[test]

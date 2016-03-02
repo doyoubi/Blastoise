@@ -30,7 +30,7 @@ pub fn read_string(ptr : DataPtr, len : usize) -> String {
     s
 }
 
-pub fn byte_offset(ptr : DataPtr, byte_offset : usize) -> DataPtr {
+pub fn pointer_offset(ptr : DataPtr, byte_offset : usize) -> DataPtr {
     unsafe{
         (ptr as *mut u8).offset(byte_offset as isize) as DataPtr
     }

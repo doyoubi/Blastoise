@@ -7,7 +7,7 @@ use std::fs::{OpenOptions, File};
 use std::slice::from_raw_parts;
 use std::io::{Read, Write, Seek, SeekFrom};
 use ::utils::libwrapper::get_page_size;
-use ::utils::pointer::{read_string, write_string, byte_offset};
+use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool};
 use super::table::{TableRef, AttrType};
@@ -25,7 +25,7 @@ impl PageHeader {
     pub fn save_to_page_data(&mut self) {
         unsafe{
             write::<u32>(self.data as *mut u32, self.slot_sum as u32);
-            let next_data_ptr = self.data.offset(size_of::<u32>() as isize);
+            let next_data_ptr = pointer_offset(self.data, size_of::<u32>());
             write::<u32>(next_data_ptr as *mut u32, self.first_free_slot as u32);
         }
     }
@@ -33,7 +33,7 @@ impl PageHeader {
         unsafe{
             let slot_sum = read::<u32>(self.data as *const u32) as usize;
             assert_eq!(slot_sum, self.slot_sum);
-            let next_data_ptr = self.data.offset(size_of::<u32>() as isize);
+            let next_data_ptr = pointer_offset(self.data, size_of::<u32>());
             self.first_free_slot = read::<u32>(next_data_ptr as *const u32) as usize;
         }
     }
@@ -77,7 +77,7 @@ impl BitMap {
         let bit_offset = index % 8;
         let n = 1 << bit_offset;
         unsafe{
-            let p = self.data.offset(byte_offset as isize);
+            let p = pointer_offset(self.data, byte_offset);
             let a = read::<u8>(p as *const u8);
             let b = if inuse {
                 a | n
@@ -93,7 +93,7 @@ impl BitMap {
         let bit_offset = index % 8;
         let n = 1 << bit_offset;
         unsafe{
-            let p = self.data.offset(byte_offset as isize);
+            let p = pointer_offset(self.data, byte_offset);
             let a = read::<u8>(p as *const u8);
             (a & n) > 0
         }
@@ -141,10 +141,16 @@ impl FilePage {
         let _lock = self.mem_page.read().unwrap();
         self.header.init_from_page_data();
     }
+    pub fn save_to_page(&mut self) {
+        let _lock = self.mem_page.write().unwrap();
+        self.header.save_to_page_data();
+    }
     pub fn is_inuse(&self, index : usize) -> bool {
+        let _lock = self.mem_page.write().unwrap();
         self.bitmap.is_inuse(index)
     }
     pub fn set_inuse(&mut self, index : usize, inuse : bool) {
+        let _lock = self.mem_page.write().unwrap();
         self.bitmap.set_inuse(index, inuse);
     }
     pub fn insert(&mut self, value_list : &ValueList, tuple_desc : &TupleDesc) {
@@ -155,6 +161,7 @@ impl FilePage {
         let first_free_slot = self.header.first_free_slot;
         self.set_inuse(first_free_slot, true);
         self.header.first_free_slot = self.bitmap.get_first_free_slot();
+        self.save_to_page();
 
         let _lock = self.mem_page.read().unwrap();
         let mut p = unsafe{
@@ -167,24 +174,26 @@ impl FilePage {
                 (ValueType::Integer, &AttrType::Int) => {
                     let n : i32 = v.value.parse::<i32>().unwrap();
                     unsafe{ write::<i32>(p as *mut i32, n) };
-                    p = byte_offset(p, 4);
+                    p = pointer_offset(p, 4);
                 }
                 (ValueType::Float, &AttrType::Float) | (ValueType::Integer, &AttrType::Float) => {
                     let n : f32 = v.value.parse::<f32>().unwrap();
                     unsafe{ write::<f32>(p as *mut f32, n) };
-                    p = byte_offset(p, 4);
+                    p = pointer_offset(p, 4);
                 }
                 (ValueType::String, &AttrType::Char{len}) => {
+                    let aligned_len = (len + 3) / 4 * 4;
                     write_string(p, &v.value, len);
-                    p = byte_offset(p, len);
+                    p = pointer_offset(p, aligned_len);
                 }
                 (ValueType::Null, &AttrType::Int) | (ValueType::Null, &AttrType::Float) => {
                     unsafe{ write_bytes(p, 0, 4) };
-                    p = byte_offset(p, 4);
+                    p = pointer_offset(p, 4);
                 }
                 (ValueType::Null, &AttrType::Char{len}) => {
-                    unsafe{ write_bytes(p, 0, len) };
-                    p = byte_offset(p, len);
+                    let aligned_len = (len + 3) / 4 * 4;
+                    unsafe{ write_bytes(p, 0, aligned_len) };
+                    p = pointer_offset(p, aligned_len);
                 }
                 _ => panic!("invalid value, expected {:?}, found {:?}", d, v),
             }

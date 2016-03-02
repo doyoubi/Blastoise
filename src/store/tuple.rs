@@ -26,12 +26,12 @@ pub struct TupleData {
 }
 
 pub fn tuple_len(attr_list : &Vec<Attr>) -> usize {
-    let mut len = 0;
+    let mut l = 0;
     for attr in attr_list {
-        len += match attr.attr_type {
+        l += match attr.attr_type {
             AttrType::Int | AttrType::Float => 4,
-            AttrType::Char{len} => len,
+            AttrType::Char{len} => (len + 3) / 4 * 4,  // align to 4 bytes
         }
     }
-    len
+    l
 }
