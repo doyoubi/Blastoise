@@ -114,7 +114,7 @@ fn test_json_translate() {
 fn test_get_table() {
     let manager = TableManager::from_json(JSON_DATA);
     let table = extract!(manager.get_table("book"), Some(table), table);
-    let table = table.read().unwrap();
+    let table = table.borrow();
     assert_eq!(table.name, "book");
     assert_eq!(table.attr_list.len(), 2);
 }
@@ -122,9 +122,9 @@ fn test_get_table() {
 #[test]
 fn test_gen_table_set() {
     let manager = TableManager::from_json(JSON_DATA);
-    let mut lock_table = HashMap::new();
-    lock_table.insert("author".to_string(), false);
-    lock_table.insert("book".to_string(), true);
-    let set = manager.gen_table_set(&lock_table);
+    let mut used_table = Vec::new();
+    used_table.push("author".to_string());
+    used_table.push("book".to_string());
+    let set = manager.gen_table_set(&used_table);
     assert_eq!(set.tables.len(), 2);
 }

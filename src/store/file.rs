@@ -209,9 +209,9 @@ pub struct TableFile<'a> {
 }
 
 impl<'a> TableFile<'a> {
-    pub fn new(name : String, table : TableRef) -> TableFile<'a> {
+    pub fn new<'b>(name : String, table : TableRef) -> TableFile<'b> {
         let file = OpenOptions::new().read(true).write(true).create(true).open(&name).unwrap();
-        let tuple_desc = table.read().unwrap().gen_tuple_desc();
+        let tuple_desc = table.borrow().gen_tuple_desc();
         TableFile{
             saved_name : name,
             file : file,

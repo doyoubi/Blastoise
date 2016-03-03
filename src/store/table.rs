@@ -1,7 +1,8 @@
 use std::vec::Vec;
 use std::collections::{BTreeMap, HashMap};
 use std::option::Option;
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Mutex, Arc};
+use std::rc::Rc;
+use std::cell::RefCell;
 use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
 use super::tuple::TupleDesc;
@@ -31,7 +32,8 @@ pub struct Attr {
     pub nullable : bool,
 }
 
-pub type TableRef = Arc<RwLock<Table>>;
+
+pub type TableRef = Rc<RefCell<Table>>;
 
 #[derive(Debug, Clone, RustcDecodable, RustcEncodable)]
 pub struct Table {
@@ -48,30 +50,13 @@ impl Table {
 
 pub struct TableSet {
     pub tables : HashMap<String, Table>,
-    table_refs : HashMap<String, (TableRef, bool)>,
 }
 
 impl TableSet {
     pub fn new() -> TableSet {
         TableSet{
             tables : HashMap::new(),
-            table_refs : HashMap::new(),
         }
-    }
-    pub fn get_all_lock(&mut self) -> (Vec<RwLockReadGuard<Table>>, Vec<RwLockWriteGuard<Table>>) {
-        // should be inside the mutex guard of TableManager
-        let mut write_locks = Vec::new();
-        let mut read_locks = Vec::new();
-        for (_name, &(ref table_ref, need_write)) in self.table_refs.iter() {
-            if need_write {
-                let guard = table_ref.write().unwrap();
-                write_locks.push(guard);
-            } else {
-                let guard = table_ref.read().unwrap();
-                read_locks.push(guard);
-            }
-        }
-        (read_locks, write_locks)
     }
     pub fn exist(&self, name : &str) -> bool {
         match self.tables.get(name) {
@@ -107,7 +92,7 @@ impl TableSet {
 }
 
 
-pub type TableManagerRef = Arc<Mutex<TableManager>>;
+pub type TableManagerRef = Rc<RefCell<TableManager>>;
 
 #[derive(Debug)]
 pub struct TableManager {
@@ -116,7 +101,7 @@ pub struct TableManager {
 
 impl TableManager {
     pub fn make_ref() -> TableManagerRef {
-        TableManagerRef::new(Mutex::new(TableManager::new()))
+        Rc::new(RefCell::new(TableManager::new()))
     }
     pub fn new() -> TableManager {
         TableManager{ tables : BTreeMap::new() }
@@ -127,50 +112,37 @@ impl TableManager {
         let mut tables = BTreeMap::new();
         let tree : BTreeMap<String, Table> = unwrap!(decode(json));
         for (name, table) in tree.iter() {
-            tables.insert(name.clone(), Arc::new(RwLock::new(table.clone())));
+            tables.insert(name.clone(), Rc::new(RefCell::new(table.clone())));
         }
         TableManager{
             tables : tables
         }
     }
     pub fn to_json(&self) -> String {
-        let mut tables = Vec::new();  // hold lock
         let mut tree : BTreeMap<String, Table> = BTreeMap::new();
         for (name, table) in self.tables.iter() {
-            let t = lock_unwrap!(table.read());
-            tree.insert(name.clone(), t.clone());
-            tables.push(t);
+            tree.insert(name.clone(), table.borrow().clone());
         }
         unwrap!(encode(&tree))
     }
     pub fn add_table(&mut self, table : Table) {
-        self.tables.insert(table.name.clone(), Arc::new(RwLock::new(table)));
+        self.tables.insert(table.name.clone(), Rc::new(RefCell::new(table)));
     }
     pub fn remove_table(&mut self, table : &String) {
         self.tables.remove(table);
     }
     pub fn get_table(&self, name : &str) -> Option<TableRef> {
         match self.tables.get(name) {
-            Some(table_ref) => Some(table_ref.clone()),
+            Some(ref mut table) => Some(table.clone()),
             None => None,
         }
     }
-    pub fn gen_table_set(&self, lock_table : &HashMap<String, bool>) -> TableSet {
+    pub fn gen_table_set(&self, used_table : &Vec<String>) -> TableSet {
         let mut tables = HashMap::new();
-        let mut table_refs = HashMap::new();
-        for (name, need_write) in lock_table.iter() {
-            let table_ref = self.tables.get(name).unwrap();
-            if *need_write {
-                table_refs.insert(name.clone(), (table_ref.clone(), true));
-            } else {
-                table_refs.insert(name.clone(), (table_ref.clone(), false));
-            }
-            tables.insert(name.clone(), table_ref.read().unwrap().clone());
+        for name in used_table.iter() {
+            tables.insert(name.clone(), self.tables.get(name).unwrap().borrow().clone());
         }
-        TableSet{
-            tables : tables,
-            table_refs : table_refs,
-        }
+        TableSet{ tables : tables }
     }
 }
 

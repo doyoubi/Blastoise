@@ -21,13 +21,13 @@ macro_rules! gen_plan_helper {
 #[test]
 fn test_create_table() {
     let manager = TableManager::make_ref();
-    assert_pattern!(manager.lock().unwrap().get_table("msg"), None);
+    assert_pattern!(manager.borrow().get_table("msg"), None);
     let mut plan = gen_plan_helper!(
         "create table msg(id int not null primary, content char(233))", &manager);
     plan.open();
     assert_pattern!(plan.get_next(), None);
-    let table = extract!(manager.lock().unwrap().get_table("msg"), Some(tab), tab);
-    let tab = table.read().unwrap();
+    let table = extract!(manager.borrow().get_table("msg"), Some(tab), tab);
+    let tab = table.borrow();
     assert_eq!(tab.name, "msg");
     assert_eq!(tab.attr_list.len(), 2);
 }
@@ -44,10 +44,10 @@ fn test_drop_table() {
                 nullable : false,
             }],
     };
-    manager.lock().unwrap().add_table(table);
+    manager.borrow_mut().add_table(table);
     let mut plan = gen_plan_helper!("drop table msg", &manager);
-    assert_pattern!(manager.lock().unwrap().get_table("msg"), Some(..));
+    assert_pattern!(manager.borrow().get_table("msg"), Some(..));
     plan.open();
     assert_pattern!(plan.get_next(), None);
-    assert_pattern!(manager.lock().unwrap().get_table("msg"), None);
+    assert_pattern!(manager.borrow().get_table("msg"), None);
 }

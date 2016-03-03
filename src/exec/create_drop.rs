@@ -53,7 +53,7 @@ impl ExecIter for CreateTable {
             attr_list : attr_list,
         };
         {
-            let mut manager = self.table_manager.lock().unwrap();
+            let mut manager = self.table_manager.borrow_mut();
             manager.add_table(table);
         }
         self.finished = true;
@@ -90,7 +90,7 @@ impl ExecIter for DropTable {
             return None;
         }
         {
-            let mut manager = self.table_manager.lock().unwrap();
+            let mut manager = self.table_manager.borrow_mut();
             manager.remove_table(&self.stmt.table);
         }
         self.finished = true;

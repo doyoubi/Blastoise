@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::vec::Vec;
 use ::parser::common::Statement;
 use ::parser::select::Relation;
@@ -36,33 +35,33 @@ pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> 
 }
 
 pub fn gen_table_set(stmt : &Statement, table_manager : &TableManagerRef) -> TableSet {
-    let mut rw_table = HashMap::new();
+    let mut table_list = Vec::new();
     match stmt {
         &Statement::Select(ref select) => {
             let mut tables = gen_select_table_set_helper(select);
             for name in tables.drain(..) {
-                rw_table.insert(name, false);
+                table_list.push(name);
             }
         }
         &Statement::Delete(ref delete) =>
-            { rw_table.insert(delete.table.clone(), true); }
+            { table_list.push(delete.table.clone()); }
         &Statement::Update(ref update) =>
-            { rw_table.insert(update.table.clone(), true); }
+            { table_list.push(update.table.clone()); }
         &Statement::Insert(ref insert) =>
-            { rw_table.insert(insert.table.clone(), true); }
+            { table_list.push(insert.table.clone()); }
         &Statement::Create(ref create) => {
-            if let Some(..) = table_manager.lock().unwrap().get_table(&create.table) {
-                rw_table.insert(create.table.clone(), false);
+            if let Some(..) = table_manager.borrow().get_table(&create.table) {
+                table_list.push(create.table.clone());
             }
         }
         &Statement::Drop(ref drop) => {
-            if let Some(..) = table_manager.lock().unwrap().get_table(&drop.table) {
-                rw_table.insert(drop.table.clone(), true);
+            if let Some(..) = table_manager.borrow().get_table(&drop.table) {
+                table_list.push(drop.table.clone());
             }
         }
 
     }
-    table_manager.lock().unwrap().gen_table_set(&rw_table)
+    table_manager.borrow().gen_table_set(&table_list)
 }
 
 fn gen_select_table_set_helper(stmt : &SelectStatement) -> Vec<String> {
