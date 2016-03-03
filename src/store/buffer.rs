@@ -1,6 +1,5 @@
 use std::ptr::null_mut;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, RwLock};
 use std::option::Option;
 use std::fmt::Debug;
 use std::boxed::Box;
@@ -33,7 +32,7 @@ impl Hash for PageKey {
 }
 
 
-pub type PageRef = Arc<RwLock<Page>>;
+pub type PageRef<'a> = &'a mut Page;
 
 #[derive(Debug)]
 pub struct Page {
@@ -44,19 +43,15 @@ pub struct Page {
     pub saver : CacheSaverRef,
 }
 
-impl CacheValue for PageRef {
+impl CacheValue for Page {
     type KeyType = PageKey;
-    fn pop_callback(self, new_value : &mut PageRef)
-            -> Result<(), Self> {
-        let old_value = try!(Arc::try_unwrap(self));
-        let mut old_page = old_value.write().unwrap();
+    fn pop_callback(&mut self, new_value : &mut Page) {
+        let mut old_page = self;
         assert!(!old_page.data.is_null());
-        let mut new_page = new_value.write().unwrap();
-        // if place new_page.data = old_page.data here, it will crash, maybe a compiler bug
+        let mut new_page = new_value;
         old_page.save();
         new_page.data = old_page.data;  // place here to get around the crash problem
         old_page.data = null_mut();
-        Ok(())
     }
 }
 
@@ -95,7 +90,7 @@ impl Drop for Page {
 #[derive(Debug)]
 pub struct PagePool {
     // should be protected by mutex
-    cache: LruCache<PageRef>,
+    cache: LruCache<Page>,
 }
 
 impl PagePool {
@@ -108,13 +103,12 @@ impl PagePool {
         let key = PageKey{ fd : fd, page_index : page_index };
         self.cache.get(&key)
     }
-    pub fn put_page(&mut self, fd : i32, page_index : u32, saver : CacheSaverRef) -> bool {
+    pub fn put_page(&mut self, fd : i32, page_index : u32, saver : CacheSaverRef) {
         let key = PageKey{ fd : fd, page_index : page_index };
         let mut new_page = Page::new(fd, page_index, saver);
         if self.cache.get_load() < self.cache.capacity() {
             new_page.alloc();
         }
-        let r = Arc::new(RwLock::new(new_page));
-        self.cache.put(&key, r)
+        self.cache.put(&key, new_page);
     }
 }

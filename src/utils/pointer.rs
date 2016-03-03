@@ -9,19 +9,19 @@ pub fn char_to_u8(c : char) -> u8 {
     c as u8
 }
 
-pub fn write_string(ptr : DataPtr, input : &String, len : usize) {
+pub unsafe fn write_string(ptr : DataPtr, input : &String, len : usize) {
     assert!(input.len() <= len);
-    unsafe{ write_bytes(ptr, 0, len) };
+    write_bytes(ptr, 0, len);
     for (i, c) in input.chars().enumerate() {
         let byte = char_to_u8(c);
-        unsafe{ write::<u8>((ptr as *mut u8).offset(i as isize), byte) };
+        write::<u8>((ptr as *mut u8).offset(i as isize), byte);
     }
 }
 
-pub fn read_string(ptr : DataPtr, len : usize) -> String {
+pub unsafe fn read_string(ptr : DataPtr, len : usize) -> String {
     let mut s = String::new();
     for i in 0..len {
-        let n = unsafe{ read::<u8>((ptr as *const u8).offset(i as isize)) };
+        let n = read::<u8>((ptr as *const u8).offset(i as isize));
         if n == 0 {
             return s;
         }

@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::sync::{RwLock, Arc};
-use std::vec::Vec;
 use std::mem::size_of;
 use std::ptr::{write, read, write_bytes};
 use std::fs::{OpenOptions, File};
@@ -101,16 +99,16 @@ impl BitMap {
 }
 
 #[derive(Debug)]
-pub struct FilePage {
+pub struct FilePage<'a> {
     pub header : PageHeader,
     pub bitmap : BitMap,
     pub tuple_data : DataPtr,
-    pub mem_page : PageRef,
+    pub mem_page : PageRef<'a>,
 }
 
-impl FilePage {
+impl<'a> FilePage<'a> {
     pub fn new(mem_page : PageRef, tuple_len : usize) -> FilePage {
-        let data = mem_page.write().unwrap().data;
+        let data = mem_page.data;
         let header_size = 2 * size_of::<u32>();  // PageHeader
         let page_size = get_page_size();
         // (n + 8 - 1) / 8 + tuple_len * n <= page_size - header_size
@@ -133,24 +131,19 @@ impl FilePage {
         }
     }
     pub fn init_empty_page(&mut self) {
-        let _lock = self.mem_page.write().unwrap();
         self.header.save_to_page_data();
         self.bitmap.clean();
     }
     pub fn init_from_page_data(&mut self) {
-        let _lock = self.mem_page.read().unwrap();
         self.header.init_from_page_data();
     }
     pub fn save_to_page(&mut self) {
-        let _lock = self.mem_page.write().unwrap();
         self.header.save_to_page_data();
     }
     pub fn is_inuse(&self, index : usize) -> bool {
-        let _lock = self.mem_page.write().unwrap();
         self.bitmap.is_inuse(index)
     }
     pub fn set_inuse(&mut self, index : usize, inuse : bool) {
-        let _lock = self.mem_page.write().unwrap();
         self.bitmap.set_inuse(index, inuse);
     }
     pub fn insert(&mut self, value_list : &ValueList, tuple_desc : &TupleDesc) {
@@ -163,7 +156,6 @@ impl FilePage {
         self.header.first_free_slot = self.bitmap.get_first_free_slot();
         self.save_to_page();
 
-        let _lock = self.mem_page.read().unwrap();
         let mut p = unsafe{
             self.tuple_data.offset(
                 (tuple_desc.tuple_len * first_free_slot) as isize
@@ -183,7 +175,7 @@ impl FilePage {
                 }
                 (ValueType::String, &AttrType::Char{len}) => {
                     let aligned_len = (len + 3) / 4 * 4;
-                    write_string(p, &v.value, len);
+                    unsafe{ write_string(p, &v.value, len) };
                     p = pointer_offset(p, aligned_len);
                 }
                 (ValueType::Null, &AttrType::Int) | (ValueType::Null, &AttrType::Float) => {
@@ -205,26 +197,26 @@ impl FilePage {
 }
 
 
-type TableFileRef = Arc<RwLock<TableFile>>;
-
 #[derive(Debug)]
-pub struct TableFile {
+pub struct TableFile<'a> {
     pub saved_name : String,
     pub file : File,
-    pub page_list : Vec<FilePage>,
+    pub loaded_pages : HashMap<usize, FilePage<'a>>,
+    pub page_sum : usize,  // including pages not loaded in memory
     pub table : TableRef,
     pub first_free_page : usize,
     pub tuple_desc : TupleDesc,  // for FilePage
 }
 
-impl TableFile {
-    pub fn new(name : &String, table : TableRef) -> TableFile {
-        let file = OpenOptions::new().read(true).write(true).create(true).open(name).unwrap();
+impl<'a> TableFile<'a> {
+    pub fn new(name : String, table : TableRef) -> TableFile<'a> {
+        let file = OpenOptions::new().read(true).write(true).create(true).open(&name).unwrap();
         let tuple_desc = table.read().unwrap().gen_tuple_desc();
         TableFile{
-            saved_name : name.clone(),
+            saved_name : name,
             file : file,
-            page_list : Vec::new(),
+            loaded_pages : HashMap::new(),
+            page_sum : 0,
             table : table,
             first_free_page : 0,
             tuple_desc : tuple_desc,
@@ -232,7 +224,7 @@ impl TableFile {
     }
     pub fn save_to_file(&mut self) {
         is_match!(self.file.seek(SeekFrom::Start(0)), Ok(..));
-        let header = [self.page_list.len() as u32, self.first_free_page as u32];
+        let header = [self.page_sum as u32, self.first_free_page as u32];
         is_match!(self.file.write_all(unsafe{
             from_raw_parts::<u8>((&header).as_ptr() as *const u8, 8)
         }), Ok(..));
@@ -241,36 +233,38 @@ impl TableFile {
     pub fn init_from_file(&mut self) {}
     pub fn insert(&mut self, value_list : &ValueList) {
         // must call add_page first if need_new_page() is true
-        assert!(self.first_free_page < self.page_list.len());
-        let file_page = &mut self.page_list[self.first_free_page];
+        assert!(self.first_free_page < self.page_sum);
+        let file_page = self.loaded_pages.get_mut(&self.first_free_page).unwrap();
+        assert!(!file_page.is_full());
         file_page.insert(value_list, &self.tuple_desc)
     }
     pub fn need_new_page(&mut self) -> bool {
-        while self.first_free_page < self.page_list.len() {
-            let page = &self.page_list[self.first_free_page];
+        while self.first_free_page < self.page_sum {
+            let page = &self.loaded_pages.get(&self.first_free_page).unwrap();
             if page.is_full() {
                 self.first_free_page += 1
             } else {
                 break;
             }
         }
-        self.first_free_page == self.page_list.len()
+        self.first_free_page == self.page_sum
     }
-    pub fn add_page(&mut self, mem_page : PageRef) {
+    pub fn add_page(&mut self, mem_page : PageRef<'a>) {
         let file_page = FilePage::new(mem_page, self.tuple_desc.tuple_len);
-        self.page_list.push(file_page);
+        self.loaded_pages.insert(file_page.mem_page.page_index as usize, file_page);
+        self.page_sum += 1;
     }
 }
 
 
 #[derive(Debug)]
-pub struct TableFileManager {
-    files : HashMap<String, TableFileRef>,  // key is table name
+pub struct TableFileManager<'a> {
+    files : HashMap<String, TableFile<'a>>,  // key is table name
     page_pool : PagePool,
 }
 
-impl TableFileManager {
-    fn new(pool_capacity : usize) -> TableFileManager {
+impl<'a> TableFileManager<'a> {
+    fn new(pool_capacity : usize) -> TableFileManager<'a> {
         TableFileManager{
             files : HashMap::new(),
             page_pool : PagePool::new(pool_capacity),
@@ -279,11 +273,15 @@ impl TableFileManager {
     fn from_files(_path : &str) -> TableFileManager {
         unimplemented!()
     }
-    fn get_file(&self, table : &String) -> TableFileRef {
-        self.files.get(table).unwrap().clone()
+    fn get_file(&'a mut self, table : &String) -> &mut TableFile {
+        let file : &'a mut TableFile<'a> = self.files.get_mut(table).unwrap();
+        if file.need_new_page() {
+            // file.add_page(self.page_pool)
+        }
+        file
     }
-    fn create_file(&mut self, name : &String, table : TableRef) {
-        let file = Arc::new(RwLock::new(TableFile::new(name, table)));
-        self.files.insert(name.clone(), file);
+    fn create_file(&mut self, name : String, table : TableRef) {
+        let file = TableFile::new(name.clone(), table);
+        self.files.insert(name, file);
     }
 }

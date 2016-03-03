@@ -13,19 +13,13 @@ fn gen_count(n : u32) -> CountRef {
 #[derive(Debug, Clone)]
 struct MockValue {
     pub callback_called_times : CountRef,
-    pub poppable : bool,
     pub key : u64,
 }
 
 impl CacheValue for MockValue {
     type KeyType = u64;
-    fn pop_callback(self, _new_value : &mut Self) -> Result<(), Self> {
+    fn pop_callback(&mut self, _new_value : &mut Self) {
         self.callback_called_times.set((*self.callback_called_times).get() + 1);
-        if self.poppable {
-            Ok(())
-        } else {
-            Err(self)
-        }
     }
 }
 
@@ -33,14 +27,12 @@ impl MockValue {
     fn new(k : u64) -> Self {
         MockValue{
             callback_called_times : gen_count(0),  // not used
-            poppable : true,
             key : k,
         }
     }
     fn new_with_pop_count(k : u64, count : CountRef) -> Self {
         MockValue{
             callback_called_times : count,
-            poppable : true,
             key : k,
         }
     }
@@ -184,20 +176,17 @@ fn test_callback() {
         let mut c = LruCache::new(1);
         let count = gen_count(0);
         c.put(&1, MockValue::new_with_pop_count(1, count.clone()));
-        let success = c.put(&2, MockValue::new(2));
-        assert!(success);
+        c.put(&2, MockValue::new(2));
         assert_eq!(count.get(), 1);
         assert_head!(c, 2);
     }
     {
         let mut c = LruCache::new(1);
         let count = gen_count(0);
-        let mut mock = MockValue::new_with_pop_count(1, count.clone());
-        mock.poppable = false;
+        let mock = MockValue::new_with_pop_count(1, count.clone());
         c.put(&1, mock);
-        let success = c.put(&2, MockValue::new(2));
-        assert!(!success);
+        c.put(&2, MockValue::new(2));
         assert_eq!(count.get(), 1);
-        assert_head!(c, 1);
+        assert_head!(c, 2);
     }
 }

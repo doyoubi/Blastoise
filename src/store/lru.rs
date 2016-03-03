@@ -3,16 +3,12 @@ use std::vec::Vec;
 use std::ptr::null_mut;
 use std::option::Option::{Some, None};
 use std::hash::{Hash, Hasher, SipHasher};
-use std::clone::Clone;
-use std::mem::swap;
-use std::result::Result;
-use std::result::Result::Err;
 use std::fmt::Debug;
 
 
-pub trait CacheValue : Clone + Debug {
+pub trait CacheValue : Debug {
     type KeyType : Hash;
-    fn pop_callback(self, new_value : &mut Self) -> Result<(), Self>;
+    fn pop_callback(&mut self, new_value : &mut Self);
 }
 
 
@@ -86,16 +82,16 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         self.hash_map.len()
     }
 
-    pub fn get_head(&mut self) -> Option<ValueType> {
+    pub fn get_head(&mut self) -> Option<&mut ValueType> {
         unsafe {
             match dr!(self.head).value {
-                Some(ref mut value) => Some(value.clone()),
+                Some(ref mut value) => Some(value),
                 None => None,
             }
         }
     }
 
-    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<ValueType> {
+    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<&mut ValueType> {
         if !self.get_helper(key) {
             return None;
         }
@@ -114,7 +110,7 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         false
     }
 
-    pub fn put(&mut self, key : &ValueType::KeyType, mut value : ValueType) -> bool {
+    pub fn put(&mut self, key : &ValueType::KeyType, mut value : ValueType) {
         // return false when pool is full
         let k = hash(key);
         let hash_map = &mut self.hash_map;
@@ -123,14 +119,8 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         let tail = &mut self.tail;
 
         let old_value = &mut dre!(*tail).value;
-        if old_value.is_some() {
-            let mut tmp = None;
-            swap(old_value, &mut tmp);
-            let tmp = tmp.unwrap();
-            if let Err(v) = tmp.pop_callback(&mut value) {
-                swap(&mut Some(v), old_value);
-                return false;
-            }
+        if let &mut Some(ref mut old) = old_value {
+            old.pop_callback(&mut value);
             hash_map.remove(&dre!(*tail).key);
         }
 
@@ -140,7 +130,6 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         head_node.value = Some(value);
         head_node.key = k;
         hash_map.insert(k, *head);
-        true
     }
 
     fn node_to_head(

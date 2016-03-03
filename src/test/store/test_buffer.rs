@@ -42,23 +42,20 @@ fn test_page_pool() {
         saved : false,
     }));
     assert_pattern!(pool.get_page(fd, page_index), None);
-    assert!(pool.put_page(fd, page_index, Box::new(s1.clone())));
+    pool.put_page(fd, page_index, Box::new(s1.clone()));
     {
-        let page1 = extract!(pool.get_page(fd, page_index), Some(page), page);
-        let p1 = page1.write().unwrap();
+        let p1 = pool.get_page(fd, page_index).unwrap();
         assert_eq!(p1.fd, fd);
         assert_eq!(p1.page_index, page_index);
         assert!(!p1.data.is_null());
         unsafe{write::<i32>(p1.data as *mut i32, 666);}
-        assert!(!pool.put_page(21, 22, Box::new(s2.clone())));
     }
-    assert!(pool.put_page(21, 22, Box::new(s2.clone())));
+    pool.put_page(21, 22, Box::new(s2.clone()));
     assert!(s1.get().saved);
     fd = 21;
     page_index = 22;
     {
-        let page2 = extract!(pool.get_page(fd, page_index), Some(page), page);
-        let p2 = page2.write().unwrap();
+        let p2 = pool.get_page(fd, page_index).unwrap();
         assert_eq!(p2.fd, fd);
         assert_eq!(p2.page_index, page_index);
         assert!(!p2.data.is_null());
