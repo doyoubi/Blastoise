@@ -1,7 +1,7 @@
 use std::boxed::Box;
 use std::option::Option::{Some, None};
 use std::rc::Rc;
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::ptr::{write, read};
 use ::store::buffer::{CacheSaver, Page, PagePool, DataPtr};
 
@@ -13,9 +13,9 @@ pub struct MockCacheSaver {
     pub saved : bool,
 }
 
-impl CacheSaver for Rc<Cell<MockCacheSaver>> {
+impl CacheSaver for MockCacheSaver {
     fn save(&mut self, fd : i32, page_index : u32, data : DataPtr) {
-        let mut mock = self.get();
+        let mut mock = self;
         assert_eq!(mock.saved, false);
         assert_eq!(mock.fd, fd);
         assert_eq!(mock.page_index, page_index);
@@ -23,7 +23,6 @@ impl CacheSaver for Rc<Cell<MockCacheSaver>> {
         let n = unsafe{read::<i32>(data as *const i32)};
         assert_eq!(666, n);
         mock.saved = true;
-        self.set(mock);
     }
 }
 
@@ -31,31 +30,33 @@ impl CacheSaver for Rc<Cell<MockCacheSaver>> {
 fn test_page_pool() {
     let mut pool = PagePool::new(1);
     let (mut fd, mut page_index) = (11, 12);
-    let s1 = Rc::new(Cell::new(MockCacheSaver{
+    let s1 = Rc::new(RefCell::new(MockCacheSaver{
         fd : fd,
         page_index: page_index,
         saved : false,
     }));
-    let s2 = Rc::new(Cell::new(MockCacheSaver{
+    let s2 = Rc::new(RefCell::new(MockCacheSaver{
         fd : 21,
         page_index: 22,
         saved : false,
     }));
     assert_pattern!(pool.get_page(fd, page_index), None);
-    pool.put_page(fd, page_index, Box::new(s1.clone()));
+    pool.put_page(fd, page_index, s1.clone());
     {
-        let p1 = pool.get_page(fd, page_index).unwrap();
+        let page1 = pool.get_page(fd, page_index).unwrap();
+        let p1 = page1.borrow();
         assert_eq!(p1.fd, fd);
         assert_eq!(p1.page_index, page_index);
         assert!(!p1.data.is_null());
         unsafe{write::<i32>(p1.data as *mut i32, 666);}
     }
-    pool.put_page(21, 22, Box::new(s2.clone()));
-    assert!(s1.get().saved);
+    pool.put_page(21, 22, s2.clone());
+    assert!(s1.borrow().saved);
     fd = 21;
     page_index = 22;
     {
-        let p2 = pool.get_page(fd, page_index).unwrap();
+        let page2 = pool.get_page(fd, page_index).unwrap();
+        let p2 = page2.borrow();
         assert_eq!(p2.fd, fd);
         assert_eq!(p2.page_index, page_index);
         assert!(!p2.data.is_null());

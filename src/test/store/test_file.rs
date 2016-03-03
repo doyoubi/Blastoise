@@ -1,6 +1,6 @@
 use std::ptr::{read, write};
 use std::rc::Rc;
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
 use libc::malloc;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
@@ -115,17 +115,18 @@ fn gen_test_table() -> Table {
 
 #[test]
 fn test_file_page_insert() {
-    let saver = Box::new(Rc::new(Cell::new(MockCacheSaver{
+    let saver = Rc::new(RefCell::new(MockCacheSaver{
         fd : 0,  // not used
         page_index: 0,  // not used
         saved : false,  // not used
-    })));
+    }));
     let table = gen_test_table();
     let tuple_desc = table.gen_tuple_desc();
     assert_eq!(tuple_desc.tuple_len, 16);
     let mut mem_page = Page::new(1, 2, saver);
     mem_page.alloc();
-    let mut file_page = FilePage::new(&mut mem_page, tuple_desc.tuple_len);
+    let page = Rc::new(RefCell::new(mem_page));
+    let mut file_page = FilePage::new(page, tuple_desc.tuple_len);
     file_page.init_empty_page();
     let mut value_list = vec![
         ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
@@ -145,7 +146,7 @@ fn test_file_page_insert() {
     assert_eq!(file_page.is_inuse(1), true);
 
     file_page.save_to_page();
-    let mut p = file_page.mem_page.data;
+    let mut p = file_page.mem_page.borrow().data;
     assert_eq!(unsafe{ read(p as *const u32) }, 253);  // slot_sum
     p = pointer_offset(p, 4);
     assert_eq!(unsafe{ read(p as *const u32) }, 2);  // first_free_slot

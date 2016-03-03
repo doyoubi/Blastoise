@@ -2,14 +2,15 @@ use std::ptr::null_mut;
 use std::hash::{Hash, Hasher};
 use std::option::Option;
 use std::fmt::Debug;
-use std::boxed::Box;
+use std::rc::Rc;
+use std::cell::RefCell;
 use libc::{c_void, free};
 use super::lru::{CacheValue, LruCache};
 use ::utils::libwrapper::alloc_page;
 
 
 pub type DataPtr = *mut c_void;
-pub type CacheSaverRef = Box<CacheSaver>;
+pub type CacheSaverRef = Rc<RefCell<CacheSaver>>;
 
 pub trait CacheSaver : Debug {
     fn save(&mut self, fd : i32, page_index : u32, data : DataPtr);
@@ -32,7 +33,7 @@ impl Hash for PageKey {
 }
 
 
-pub type PageRef<'a> = &'a mut Page;
+pub type PageRef = Rc<RefCell<Page>>;
 
 #[derive(Debug)]
 pub struct Page {
@@ -43,12 +44,12 @@ pub struct Page {
     pub saver : CacheSaverRef,
 }
 
-impl CacheValue for Page {
+impl CacheValue for PageRef {
     type KeyType = PageKey;
-    fn pop_callback(&mut self, new_value : &mut Page) {
-        let mut old_page = self;
+    fn pop_callback(&mut self, new_value : &mut PageRef) {
+        let mut old_page = self.borrow_mut();
         assert!(!old_page.data.is_null());
-        let mut new_page = new_value;
+        let mut new_page = new_value.borrow_mut();
         old_page.save();
         new_page.data = old_page.data;  // place here to get around the crash problem
         old_page.data = null_mut();
@@ -73,7 +74,7 @@ impl Page {
         self.dirty = true;
     }
     pub fn save(&mut self) {
-        self.saver.save(self.fd, self.page_index, self.data);
+        self.saver.borrow_mut().save(self.fd, self.page_index, self.data);
     }
 }
 
@@ -90,7 +91,7 @@ impl Drop for Page {
 #[derive(Debug)]
 pub struct PagePool {
     // should be protected by mutex
-    cache: LruCache<Page>,
+    cache: LruCache<PageRef>,
 }
 
 impl PagePool {
@@ -109,6 +110,6 @@ impl PagePool {
         if self.cache.get_load() < self.cache.capacity() {
             new_page.alloc();
         }
-        self.cache.put(&key, new_page);
+        self.cache.put(&key, Rc::new(RefCell::new(new_page)));
     }
 }

@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher, SipHasher};
 use std::fmt::Debug;
 
 
-pub trait CacheValue : Debug {
+pub trait CacheValue : Clone + Debug {
     type KeyType : Hash;
     fn pop_callback(&mut self, new_value : &mut Self);
 }
@@ -34,7 +34,7 @@ impl<ValueType> Node<ValueType> {
 }
 
 #[derive(Debug)]
-pub struct LruCache<ValueType> {
+pub struct LruCache<ValueType : Clone> {
     capacity : usize,
     hash_map : HashMap<u64, NodePtr<ValueType>>,
     node_list : Vec<Node<ValueType>>,
@@ -82,16 +82,16 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         self.hash_map.len()
     }
 
-    pub fn get_head(&mut self) -> Option<&mut ValueType> {
+    pub fn get_head(&mut self) -> Option<ValueType> {
         unsafe {
             match dr!(self.head).value {
-                Some(ref mut value) => Some(value),
+                Some(ref mut value) => Some(value.clone()),
                 None => None,
             }
         }
     }
 
-    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<&mut ValueType> {
+    pub fn get(&mut self, key : &ValueType::KeyType) -> Option<ValueType> {
         if !self.get_helper(key) {
             return None;
         }

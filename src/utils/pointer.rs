@@ -1,4 +1,6 @@
 use std::ptr::{write, read, write_bytes};
+use std::vec::Vec;
+use std::ffi::CString;
 use ::store::buffer::DataPtr;
 
 
@@ -34,4 +36,12 @@ pub fn pointer_offset(ptr : DataPtr, byte_offset : usize) -> DataPtr {
     unsafe{
         (ptr as *mut u8).offset(byte_offset as isize) as DataPtr
     }
+}
+
+pub fn to_cstring(s : String) -> CString {
+    let mut buf = Vec::new();
+    for c in s.chars() {
+        buf.push(char_to_u8(c));
+    }
+    CString::new(buf).unwrap()
 }

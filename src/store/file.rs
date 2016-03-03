@@ -2,12 +2,15 @@ use std::collections::HashMap;
 use std::mem::size_of;
 use std::ptr::{write, read, write_bytes};
 use std::fs::{OpenOptions, File};
+use std::os::unix::io::AsRawFd;
 use std::slice::from_raw_parts;
 use std::io::{Read, Write, Seek, SeekFrom};
+use std::rc::Rc;
+use std::cell::RefCell;
 use ::utils::libwrapper::get_page_size;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::parser::common::{ValueList, ValueType};
-use super::buffer::{DataPtr, PageRef, PagePool};
+use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
 use super::table::{TableRef, AttrType};
 use super::tuple::TupleDesc;
 
@@ -99,16 +102,16 @@ impl BitMap {
 }
 
 #[derive(Debug)]
-pub struct FilePage<'a> {
+pub struct FilePage {
     pub header : PageHeader,
     pub bitmap : BitMap,
     pub tuple_data : DataPtr,
-    pub mem_page : PageRef<'a>,
+    pub mem_page : PageRef,
 }
 
-impl<'a> FilePage<'a> {
+impl FilePage {
     pub fn new(mem_page : PageRef, tuple_len : usize) -> FilePage {
-        let data = mem_page.data;
+        let data = mem_page.borrow_mut().data;
         let header_size = 2 * size_of::<u32>();  // PageHeader
         let page_size = get_page_size();
         // (n + 8 - 1) / 8 + tuple_len * n <= page_size - header_size
@@ -197,19 +200,21 @@ impl<'a> FilePage<'a> {
 }
 
 
+pub type TableFileRef = Rc<RefCell<TableFile>>;
+
 #[derive(Debug)]
-pub struct TableFile<'a> {
+pub struct TableFile {
     pub saved_name : String,
     pub file : File,
-    pub loaded_pages : HashMap<usize, FilePage<'a>>,
+    pub loaded_pages : HashMap<usize, FilePage>,
     pub page_sum : usize,  // including pages not loaded in memory
     pub table : TableRef,
     pub first_free_page : usize,
     pub tuple_desc : TupleDesc,  // for FilePage
 }
 
-impl<'a> TableFile<'a> {
-    pub fn new<'b>(name : String, table : TableRef) -> TableFile<'b> {
+impl TableFile {
+    pub fn new(name : String, table : TableRef) -> TableFile {
         let file = OpenOptions::new().read(true).write(true).create(true).open(&name).unwrap();
         let tuple_desc = table.borrow().gen_tuple_desc();
         TableFile{
@@ -223,11 +228,17 @@ impl<'a> TableFile<'a> {
         }
     }
     pub fn save_to_file(&mut self) {
+        // the first page only save header for alignment
         is_match!(self.file.seek(SeekFrom::Start(0)), Ok(..));
         let header = [self.page_sum as u32, self.first_free_page as u32];
         is_match!(self.file.write_all(unsafe{
             from_raw_parts::<u8>((&header).as_ptr() as *const u8, 8)
         }), Ok(..));
+        // TODO: write page data to file
+    }
+    pub fn save_page(&mut self, page_index : usize) {
+        // the first page only save header for alignment
+        let _offset = get_page_size() * (page_index + 1);
         // TODO: write page data to file
     }
     pub fn init_from_file(&mut self) {}
@@ -249,22 +260,32 @@ impl<'a> TableFile<'a> {
         }
         self.first_free_page == self.page_sum
     }
-    pub fn add_page(&mut self, mem_page : PageRef<'a>) {
+    pub fn add_page(&mut self, mem_page : PageRef) {
         let file_page = FilePage::new(mem_page, self.tuple_desc.tuple_len);
-        self.loaded_pages.insert(file_page.mem_page.page_index as usize, file_page);
+        let index = file_page.mem_page.borrow().page_index as usize;
+        self.loaded_pages.insert(index, file_page);
         self.page_sum += 1;
+    }
+    pub fn get_fd(&self) -> i32 {
+        self.file.as_raw_fd()
+    }
+}
+
+impl CacheSaver for TableFile {
+    fn save(&mut self, _fd : i32, page_index : u32, _data : DataPtr) {
+        self.save_page(page_index as usize);
     }
 }
 
 
 #[derive(Debug)]
-pub struct TableFileManager<'a> {
-    files : HashMap<String, TableFile<'a>>,  // key is table name
+pub struct TableFileManager {
+    files : HashMap<String, TableFileRef>,  // key is table name
     page_pool : PagePool,
 }
 
-impl<'a> TableFileManager<'a> {
-    fn new(pool_capacity : usize) -> TableFileManager<'a> {
+impl TableFileManager {
+    fn new(pool_capacity : usize) -> TableFileManager {
         TableFileManager{
             files : HashMap::new(),
             page_pool : PagePool::new(pool_capacity),
@@ -273,15 +294,22 @@ impl<'a> TableFileManager<'a> {
     fn from_files(_path : &str) -> TableFileManager {
         unimplemented!()
     }
-    fn get_file(&'a mut self, table : &String) -> &mut TableFile {
-        let file : &'a mut TableFile<'a> = self.files.get_mut(table).unwrap();
-        if file.need_new_page() {
-            // file.add_page(self.page_pool)
+    fn get_file(&mut self, table : &String) -> TableFileRef {
+        let file = self.files.get_mut(table).unwrap();
+        let clone = file.clone();
+        {
+            let mut f = file.borrow_mut();
+            if f.need_new_page() {
+                let new_page_index = f.page_sum;
+                let fd = f.get_fd();
+                self.page_pool.put_page(fd, new_page_index as u32, clone);
+                f.add_page(self.page_pool.get_page(fd, new_page_index as u32).unwrap());
+            }
         }
-        file
+        file.clone()
     }
     fn create_file(&mut self, name : String, table : TableRef) {
         let file = TableFile::new(name.clone(), table);
-        self.files.insert(name, file);
+        self.files.insert(name, Rc::new(RefCell::new(file)));
     }
 }
