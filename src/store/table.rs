@@ -5,7 +5,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
+use ::parser::common::ValueList;
 use ::utils::config::Config;
+use ::store::tuple::TupleValue;
 use super::tuple::TupleDesc;
 use super::file::TableFileManager;
 
@@ -113,7 +115,6 @@ impl TableManager {
         }
     }
     pub fn save_to_file() {}
-    pub fn create_table() {}
     pub fn from_json(config : &Config, json : &str) -> TableManager {
         let mut tables = BTreeMap::new();
         let tree : BTreeMap<String, Table> = unwrap!(decode(json));
@@ -132,7 +133,10 @@ impl TableManager {
         unwrap!(encode(&tree))
     }
     pub fn add_table(&mut self, table : Table) {
-        self.tables.insert(table.name.clone(), Rc::new(RefCell::new(table)));
+        let name = table.name.clone();
+        let table_ref = Rc::new(RefCell::new(table));
+        self.file_manager.create_file(name.clone(), table_ref.clone());
+        self.tables.insert(name, table_ref);
     }
     pub fn remove_table(&mut self, table : &String) {
         self.tables.remove(table);
@@ -149,6 +153,14 @@ impl TableManager {
             tables.insert(name.clone(), self.tables.get(name).unwrap().borrow().clone());
         }
         TableSet{ tables : tables }
+    }
+    pub fn get_tuple_value(&mut self, table : &String,
+            position : usize,
+            attr_position : usize) -> TupleValue{
+        self.file_manager.get_tuple_value(table, position, attr_position)
+    }
+    pub fn insert(&mut self, table : &String, value_list : &ValueList) {
+        self.file_manager.insert(table, value_list);
     }
 }
 

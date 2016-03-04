@@ -4,6 +4,13 @@ use super::table::{AttrType, Attr};
 
 
 #[derive(Debug)]
+pub enum TupleValue {
+    Int(i32),
+    Float(f32),
+    Char(String),
+}
+
+#[derive(Debug)]
 pub struct TupleDesc {
     pub attr_desc : Vec<AttrType>,
     pub tuple_len : usize,

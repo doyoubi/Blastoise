@@ -1,23 +1,8 @@
 use ::parser::common::Statement;
-use ::parser::sem_check::check_sem;
 use ::store::table::{TableManager, Table, Attr, AttrType};
 use ::utils::config::Config;
-use ::exec::gen_plan::{
-    gen_table_set,
-    gen_plan
-};
+use ::exec::gen_plan::gen_plan;
 
-
-macro_rules! gen_plan_helper {
-    ($input_str:expr, $manager:expr) => ({
-        let tokens = gen_token!($input_str);
-        let stmt = Statement::parse(&mut tokens.iter());
-        let stmt = extract!(stmt, Ok(stmt), stmt);
-        let table_set = gen_table_set(&stmt, &$manager);
-        assert_pattern!(check_sem(&stmt, &table_set), Ok(()));
-        gen_plan(stmt, $manager, table_set).unwrap()
-    })
-}
 
 #[test]
 fn test_create_table() {

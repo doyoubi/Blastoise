@@ -1,13 +1,13 @@
 use std::boxed::Box;
 use std::option::Option;
-use ::store::table::{Table, Attr, AttrType, TableManagerRef};
+use ::store::table::TableManagerRef;
 use ::store::tuple::TupleData;
 use ::parser::InsertStatement;
 use super::iter::{ExecIter, ExecIterRef};
 
 
 #[derive(Debug)]
-struct Insert {
+pub struct Insert {
     stmt : InsertStatement,
     table_manager : TableManagerRef,
     finished : bool,
@@ -33,6 +33,8 @@ impl ExecIter for Insert {
         if self.finished {
             return None;
         }
+        self.table_manager.borrow_mut().insert(&self.stmt.table, &self.stmt.value_list);
+        self.close();
         None
     }
 }

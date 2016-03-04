@@ -14,7 +14,7 @@ use ::utils::file::{path_join, ensure_dir_exist};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
 use super::table::{TableRef, AttrType};
-use super::tuple::TupleDesc;
+use super::tuple::{TupleDesc, TupleValue};
 
 
 #[derive(Debug)]
@@ -223,14 +223,6 @@ impl FilePage {
     pub fn is_full(&self) -> bool {
         self.header.first_free_slot == self.bitmap.slot_sum
     }
-}
-
-
-#[derive(Debug)]
-pub enum TupleValue {
-    Int(i32),
-    Float(f32),
-    Char(String),
 }
 
 

@@ -5,11 +5,12 @@ use std::sync::{Arc, RwLock};
 use libc::malloc;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::utils::config::Config;
-use ::store::file::{TableFile, FilePage, BitMap, PageHeader, TableFileManager, TupleValue};
+use ::store::file::{TableFile, FilePage, BitMap, PageHeader, TableFileManager};
 use ::store::buffer::{DataPtr, Page};
 use ::store::table::{Table, Attr, AttrType};
 use ::parser::common::{ValueExpr, ValueType};
 use ::test::store::test_buffer::MockCacheSaver;
+use ::store::tuple::TupleValue;
 
 
 #[test]

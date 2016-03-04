@@ -66,6 +66,22 @@ pub fn remove_blanks(s : &str) -> String {
     result
 }
 
+macro_rules! gen_plan_helper {
+    ($input_str:expr, $manager:expr) => ({
+        use ::exec::gen_plan::gen_table_set;
+        use ::parser::common::Statement;
+        use ::parser::sem_check::check_sem;
+        use ::exec::gen_plan::gen_plan;
+
+        let tokens = gen_token!($input_str);
+        let stmt = Statement::parse(&mut tokens.iter());
+        let stmt = extract!(stmt, Ok(stmt), stmt);
+        let table_set = gen_table_set(&stmt, &$manager);
+        assert_pattern!(check_sem(&stmt, &table_set), Ok(()));
+        gen_plan(stmt, $manager, table_set).unwrap()
+    })
+}
+
 // test code in ::utils
 #[test]
 fn test_raw_str_convert() {

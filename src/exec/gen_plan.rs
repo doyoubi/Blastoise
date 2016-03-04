@@ -3,7 +3,7 @@ use ::parser::common::Statement;
 use ::parser::select::Relation;
 use ::parser::{
     SelectStatement,
-    // InsertStatement,
+    InsertStatement,
     // UpdateStatement,
     // DeleteStatement,
     CreateStatement,
@@ -13,6 +13,7 @@ use ::store::table::{TableSet, TableManagerRef};
 use super::iter::ExecIterRef;
 use super::error::ExecError;
 use super::create_drop::{CreateTable, DropTable};
+use super::change::Insert;
 
 
 pub type PlanResult = Result<ExecIterRef, ExecError>;
@@ -22,6 +23,7 @@ pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set :
     match stmt {
         Statement::Create(create) => gen_create_plan(create, table_manager),
         Statement::Drop(drop) => gen_drop_plan(drop, table_manager),
+        Statement::Insert(insert) => gen_insert_plan(insert, table_manager),
         _ => unimplemented!(),
     }
 }
@@ -32,6 +34,11 @@ pub fn gen_create_plan(stmt : CreateStatement, table_manager : &TableManagerRef)
 
 pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> PlanResult {
     Ok(DropTable::new(stmt, table_manager))
+}
+
+pub fn gen_insert_plan(stmt : InsertStatement, table_manager : &TableManagerRef) -> PlanResult {
+    // TODO: use select to check if primary key already exist
+    Ok(Insert::new(stmt, table_manager))
 }
 
 pub fn gen_table_set(stmt : &Statement, table_manager : &TableManagerRef) -> TableSet {
