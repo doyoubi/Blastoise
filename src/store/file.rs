@@ -194,9 +194,41 @@ impl FilePage {
             }
         }
     }
+    pub fn get_tuple_value(&self, tuple_index : usize,
+            attr_position : usize,
+            tuple_desc : &TupleDesc) -> TupleValue {
+        assert!(self.is_inuse(tuple_index));
+        let mut p = pointer_offset(self.tuple_data, tuple_index * tuple_desc.tuple_len);
+        p = Self::attr_offset(p, tuple_desc, attr_position);
+        unsafe{
+            match tuple_desc.attr_desc[attr_position] {
+                AttrType::Int => TupleValue::Int(read::<i32>(p as *const i32)),
+                AttrType::Float => TupleValue::Float(read::<f32>(p as *const f32)),
+                AttrType::Char{len} => TupleValue::Char(read_string(p, len)),
+            }
+        }
+    }
+    pub fn attr_offset(p : DataPtr, tuple_desc : &TupleDesc, attr_position : usize) -> DataPtr {
+        let mut offset = 0;
+        for (attr_type, _) in tuple_desc.attr_desc.iter().zip(0..attr_position) {
+            match attr_type {
+                &AttrType::Int | &AttrType::Float => offset += 4,
+                &AttrType::Char{len} => offset += (len + 3) / 4 * 4,
+            }
+        }
+        pointer_offset(p, offset)
+    }
     pub fn is_full(&self) -> bool {
         self.header.first_free_slot == self.bitmap.slot_sum
     }
+}
+
+
+#[derive(Debug)]
+pub enum TupleValue {
+    Int(i32),
+    Float(f32),
+    Char(String),
 }
 
 
@@ -214,7 +246,8 @@ pub struct TableFile {
 }
 
 impl TableFile {
-    pub fn new(name : String, table : TableRef) -> TableFile {
+    pub fn new(mut name : String, table : TableRef) -> TableFile {
+        name.push_str(".table");
         let file = OpenOptions::new().read(true).write(true).create(true).open(&name).unwrap();
         let tuple_desc = table.borrow().gen_tuple_desc();
         TableFile{
@@ -248,6 +281,14 @@ impl TableFile {
         let file_page = self.loaded_pages.get_mut(&self.first_free_page).unwrap();
         assert!(!file_page.is_full());
         file_page.insert(value_list, &self.tuple_desc)
+    }
+    pub fn get_tuple_value(&self, position : usize, attr_position : usize) -> TupleValue {
+        // only for test
+        let page_index = position / self.tuple_desc.tuple_len;
+        let tuple_index = position % self.tuple_desc.tuple_len;
+        assert!(self.loaded_pages.get(&page_index).is_some());
+        let page = self.loaded_pages.get(&page_index).unwrap();
+        page.get_tuple_value(tuple_index, attr_position, &self.tuple_desc)
     }
     pub fn need_new_page(&mut self) -> bool {
         while self.first_free_page < self.page_sum {
@@ -285,30 +326,55 @@ pub struct TableFileManager {
 }
 
 impl TableFileManager {
-    fn new(pool_capacity : usize) -> TableFileManager {
+    pub fn new(pool_capacity : usize) -> TableFileManager {
         TableFileManager{
             files : HashMap::new(),
             page_pool : PagePool::new(pool_capacity),
         }
     }
-    fn from_files(_path : &str) -> TableFileManager {
+    pub fn from_files(_path : &str) -> TableFileManager {
         unimplemented!()
     }
-    fn get_file(&mut self, table : &String) -> TableFileRef {
-        let file = self.files.get_mut(table).unwrap();
+    pub fn insert(&mut self, table : &String, value_list : &ValueList) {
+        let file = self.get_file(table);
         let clone = file.clone();
-        {
-            let mut f = file.borrow_mut();
-            if f.need_new_page() {
-                let new_page_index = f.page_sum;
-                let fd = f.get_fd();
-                self.page_pool.put_page(fd, new_page_index as u32, clone);
-                f.add_page(self.page_pool.get_page(fd, new_page_index as u32).unwrap());
-            }
+        let mut f = file.borrow_mut();
+        if f.need_new_page() {
+            let new_page_index = f.page_sum;
+            let fd = f.get_fd();
+            self.page_pool.put_page(fd, new_page_index as u32, clone);
+            f.add_page(self.page_pool.get_page(fd, new_page_index as u32).unwrap());
         }
-        file.clone()
+        f.insert(value_list);
     }
-    fn create_file(&mut self, name : String, table : TableRef) {
+    pub fn get_file(&mut self, table : &String) -> TableFileRef {
+        self.files.get_mut(table).unwrap().clone()
+    }
+    pub fn get_tuple_value(&mut self, table : &String,
+            position : usize,
+            attr_position : usize) -> TupleValue{
+        // only for test
+        let file = self.files.get(table).unwrap().clone();
+        let clone = file.clone();
+        let page_index = {
+            let f = file.borrow_mut();
+            position / f.tuple_desc.tuple_len
+        };
+        self.ensure_page_loaded(clone, page_index);
+        // declare v only to fight lifetime checker
+        let v = file.borrow().get_tuple_value(position, attr_position);
+        v
+    }
+    pub fn ensure_page_loaded(&mut self, file : TableFileRef, page_index : usize) {
+        if !file.borrow().loaded_pages.get(&page_index).is_some() {
+            let clone = file.clone();
+            let mut file = file.borrow_mut();
+            let fd = file.get_fd();
+            self.page_pool.put_page(fd, page_index as u32, clone);
+            file.add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
+        }
+    }
+    pub fn create_file(&mut self, name : String, table : TableRef) {
         let file = TableFile::new(name.clone(), table);
         self.files.insert(name, Rc::new(RefCell::new(file)));
     }

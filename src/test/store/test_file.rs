@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
 use libc::malloc;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
-use ::store::file::{TableFile, FilePage, BitMap, PageHeader};
+use ::store::file::{TableFile, FilePage, BitMap, PageHeader, TableFileManager, TupleValue};
 use ::store::buffer::{DataPtr, Page};
 use ::store::table::{Table, Attr, AttrType};
 use ::parser::common::{ValueExpr, ValueType};
@@ -171,5 +171,18 @@ fn test_file_page_insert() {
 
 #[test]
 fn test_file_insert() {
-
+    let mut manager = TableFileManager::new(2);
+    let table = Rc::new(RefCell::new(gen_test_table()));
+    let table_name = "message".to_string();
+    manager.create_file(table_name.clone(), table);
+    let value_list = vec![
+        ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
+        ValueExpr{ value : "abcdef".to_string(), value_type : ValueType::String },
+        ValueExpr{ value : "666.666".to_string(), value_type : ValueType::Float },
+    ];
+    manager.insert(&table_name, &value_list);
+    assert_pattern!(manager.get_tuple_value(&table_name, 0, 0), TupleValue::Int(233));
+    assert_pattern!(manager.get_tuple_value(&table_name, 0, 2), TupleValue::Float(666.666));
+    assert_eq!(extract!(
+        manager.get_tuple_value(&table_name, 0, 1), TupleValue::Char(s), s), "abcdef");
 }
