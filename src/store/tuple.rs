@@ -27,10 +27,7 @@ impl TupleDesc {
     }
 }
 
-#[derive(Debug)]
-pub struct TupleData {
-    attr_data : Vec<DataPtr>,
-}
+pub type TupleData = Vec<DataPtr>;
 
 pub fn tuple_len(attr_list : &Vec<Attr>) -> usize {
     let mut l = 0;

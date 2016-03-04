@@ -65,10 +65,13 @@ fn test_bitmap()
     assert!(!bitmap.is_inuse(7));
     assert!(bitmap.is_inuse(8));
     assert!(!bitmap.is_inuse(9));
+    assert_eq!(bitmap.next_tuple_index(0), 8);
     bitmap.set_inuse(8 + 7, true);
     assert!(!bitmap.is_inuse(8 + 6));
     assert!(bitmap.is_inuse(8 + 7));
     assert!(!bitmap.is_inuse(8 + 8));
+    assert_eq!(bitmap.next_tuple_index(0), 8);
+    assert_eq!(bitmap.next_tuple_index(8), 8 + 7);
     bitmap.set_inuse(8 + 3, true);
     assert!(!bitmap.is_inuse(8 + 2));
     assert!(bitmap.is_inuse(8 + 3));
@@ -84,6 +87,7 @@ fn test_bitmap()
     for i in 1..8 {
         bitmap.set_inuse(i, true);
     }
+    assert_eq!(bitmap.next_tuple_index(8), 8 + 3);
     assert_eq!(bitmap.get_first_free_slot(), 8 + 1);
     bitmap.set_inuse(3, false);
     assert_eq!(bitmap.get_first_free_slot(), 3);
@@ -199,4 +203,27 @@ fn test_file_insert() {
     assert_pattern!(manager.get_tuple_value(&table_name, 1, 2), TupleValue::Float(12345.777));
     assert_eq!(extract!(
         manager.get_tuple_value(&table_name, 1, 1), TupleValue::Char(s), s), "dyb");
+}
+
+fn test_get_tuple_data() {
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 2
+        table_file_dir = "table_file""#.to_string());
+    let mut manager = TableFileManager::new(&config);
+    let table = Rc::new(RefCell::new(gen_test_table()));
+    let table_name = "test_file_message".to_string();
+    manager.create_file(table_name.clone(), table);
+    let value_list = vec![
+        ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
+        ValueExpr{ value : "abcdef".to_string(), value_type : ValueType::String },
+        ValueExpr{ value : "666.666".to_string(), value_type : ValueType::Float },
+    ];
+    manager.insert(&table_name, &value_list);
+    let tuple_data = manager.get_tuple_data(&table_name, 0).unwrap();
+    let p1 = tuple_data[0];
+    let p2 = tuple_data[1];
+    let p3 = tuple_data[2];
+    assert_eq!(unsafe{ read::<i32>(p1 as *const i32) }, 233);
+    assert_eq!(unsafe{ read_string(p2, 6) }, "abcdef");
+    assert_eq!(unsafe{ read::<f32>(p3 as *const f32) }, 666.666);
 }

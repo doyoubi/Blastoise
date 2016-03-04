@@ -14,7 +14,7 @@ use ::utils::file::{path_join, ensure_dir_exist};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
 use super::table::{TableRef, AttrType};
-use super::tuple::{TupleDesc, TupleValue};
+use super::tuple::{TupleDesc, TupleValue, TupleData};
 
 
 #[derive(Debug)]
@@ -49,14 +49,37 @@ pub struct BitMap {
 }
 
 impl BitMap {
+    pub fn next_tuple_index(&self, mut curr_index : usize) -> usize {
+        curr_index += 1;
+        if curr_index >= self.slot_sum {
+            return self.slot_sum;
+        }
+        let mut count = curr_index / 8;
+        let mut bit_count = curr_index % 8;
+        while count < (self.slot_sum + 7) / 8 {
+            let n = unsafe{ read::<u8>((self.data as *const u8).offset(count as isize)) };
+            if n == 0 { count += 1; bit_count = 0; continue; }
+            let mut mask = 1 << bit_count;
+            loop {
+                // assume the bits whose index > slot_sum is 0
+                if mask & n > 0 {
+                    return count * 8 + bit_count;
+                }
+                mask *= 2;
+                bit_count += 1;
+            }
+        }
+        self.slot_sum
+    }
     pub fn get_first_free_slot(&self) -> usize {
         let mut count = 0;
         while count < (self.slot_sum + 7) / 8 {
             let n = unsafe{ read::<u8>((self.data as *const u8).offset(count as isize)) };
             if n == 255 { count += 1; continue; }
-            let mut mask = 1;
+            let mut mask : u8 = 1;
             let mut bit_count = 0;
             loop {
+                // assume the bits whose index > slot_sum is 0
                 if (255 - mask) | n < 255 {
                     return count * 8 + bit_count;
                 }
@@ -210,6 +233,19 @@ impl FilePage {
             }
         }
     }
+    pub fn get_tuple_data(&self, tuple_index : usize, tuple_desc : &TupleDesc) -> Option<TupleData> {
+        if tuple_index >= self.bitmap.slot_sum {
+            return None;
+        }
+        assert!(self.is_inuse(tuple_index));
+        let mut tuple_data = Vec::new();
+        let mut p = pointer_offset(self.tuple_data, tuple_index * tuple_desc.tuple_len);
+        for i in 0..tuple_desc.attr_desc.len() {
+            tuple_data.push(p);
+            p = Self::attr_offset(p, tuple_desc, i);
+        }
+        Some(tuple_data)
+    }
     pub fn attr_offset(p : DataPtr, tuple_desc : &TupleDesc, attr_position : usize) -> DataPtr {
         let mut offset = 0;
         for (attr_type, _) in tuple_desc.attr_desc.iter().zip(0..attr_position) {
@@ -284,6 +320,13 @@ impl TableFile {
         assert!(self.loaded_pages.get(&page_index).is_some());
         let page = self.loaded_pages.get(&page_index).unwrap();
         page.get_tuple_value(tuple_index, attr_position, &self.tuple_desc)
+    }
+    pub fn get_tuple_data(&self, position : usize) -> Option<TupleData> {
+        let page_index = position / self.page_sum;
+        let tuple_index = position % self.tuple_desc.tuple_len;
+        assert!(self.loaded_pages.get(&page_index).is_some());
+        let page = self.loaded_pages.get(&page_index).unwrap();
+        page.get_tuple_data(tuple_index, &self.tuple_desc)
     }
     pub fn need_new_page(&mut self) -> bool {
         while self.first_free_page < self.page_sum {
@@ -362,6 +405,18 @@ impl TableFileManager {
         self.ensure_page_loaded(clone, page_index);
         // declare v only to fight lifetime checker
         let v = file.borrow().get_tuple_value(position, attr_position);
+        v
+    }
+    pub fn get_tuple_data(&mut self, table : &String, position : usize) -> Option<TupleData> {
+        let file = self.files.get(table).unwrap().clone();
+        let clone = file.clone();
+        let page_index = {
+            let f = file.borrow_mut();
+            position / f.tuple_desc.tuple_len
+        };
+        self.ensure_page_loaded(clone, page_index);
+        // declare v only to fight lifetime checker
+        let v = file.borrow().get_tuple_data(position);
         v
     }
     pub fn ensure_page_loaded(&mut self, file : TableFileRef, page_index : usize) {
