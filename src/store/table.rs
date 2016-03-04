@@ -5,7 +5,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
+use ::utils::config::Config;
 use super::tuple::TupleDesc;
+use super::file::TableFileManager;
 
 
 macro_rules! unwrap {
@@ -97,26 +99,30 @@ pub type TableManagerRef = Rc<RefCell<TableManager>>;
 #[derive(Debug)]
 pub struct TableManager {
     tables : BTreeMap<String, TableRef>,
+    file_manager : TableFileManager,
 }
 
 impl TableManager {
-    pub fn make_ref() -> TableManagerRef {
-        Rc::new(RefCell::new(TableManager::new()))
+    pub fn make_ref(config : &Config) -> TableManagerRef {
+        Rc::new(RefCell::new(TableManager::new(config)))
     }
-    pub fn new() -> TableManager {
-        TableManager{ tables : BTreeMap::new() }
+    pub fn new(config : &Config) -> TableManager {
+        TableManager{
+            tables : BTreeMap::new(),
+            file_manager : TableFileManager::new(config),
+        }
     }
     pub fn save_to_file() {}
     pub fn create_table() {}
-    pub fn from_json(json : &str) -> TableManager {
+    pub fn from_json(config : &Config, json : &str) -> TableManager {
         let mut tables = BTreeMap::new();
         let tree : BTreeMap<String, Table> = unwrap!(decode(json));
         for (name, table) in tree.iter() {
             tables.insert(name.clone(), Rc::new(RefCell::new(table.clone())));
         }
-        TableManager{
-            tables : tables
-        }
+        let mut manager = Self::new(config);
+        manager.tables = tables;
+        manager
     }
     pub fn to_json(&self) -> String {
         let mut tree : BTreeMap<String, Table> = BTreeMap::new();

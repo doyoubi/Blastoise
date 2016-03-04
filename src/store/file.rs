@@ -9,6 +9,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use ::utils::libwrapper::get_page_size;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
+use ::utils::config::Config;
+use ::utils::file::{path_join, ensure_dir_exist};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
 use super::table::{TableRef, AttrType};
@@ -246,8 +248,9 @@ pub struct TableFile {
 }
 
 impl TableFile {
-    pub fn new(mut name : String, table : TableRef) -> TableFile {
+    pub fn new(mut name : String, table : TableRef, dir : &String) -> TableFile {
         name.push_str(".table");
+        name = path_join(dir, &name);
         let file = OpenOptions::new().read(true).write(true).create(true).open(&name).unwrap();
         let tuple_desc = table.borrow().gen_tuple_desc();
         TableFile{
@@ -323,13 +326,17 @@ impl CacheSaver for TableFile {
 pub struct TableFileManager {
     files : HashMap<String, TableFileRef>,  // key is table name
     page_pool : PagePool,
+    table_file_dir : String,
 }
 
 impl TableFileManager {
-    pub fn new(pool_capacity : usize) -> TableFileManager {
+    pub fn new(config : &Config) -> TableFileManager {
+        let table_file_dir = config.get_str("table_file_dir");
+        ensure_dir_exist(&table_file_dir);
         TableFileManager{
             files : HashMap::new(),
-            page_pool : PagePool::new(pool_capacity),
+            page_pool : PagePool::new(config.get_int("max_memory_pool_page_num") as usize),
+            table_file_dir : table_file_dir,
         }
     }
     pub fn from_files(_path : &str) -> TableFileManager {
@@ -375,7 +382,7 @@ impl TableFileManager {
         }
     }
     pub fn create_file(&mut self, name : String, table : TableRef) {
-        let file = TableFile::new(name.clone(), table);
+        let file = TableFile::new(name.clone(), table, &self.table_file_dir);
         self.files.insert(name, Rc::new(RefCell::new(file)));
     }
 }

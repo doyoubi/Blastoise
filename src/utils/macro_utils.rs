@@ -36,3 +36,13 @@ macro_rules! lock_unwrap {
         }
     })
 }
+
+macro_rules! check_ok {
+    ($expression:expr) => ({
+        use std::result::Result::{Ok, Err};
+        match $expression {
+            Ok(v) => (v),
+            Err(err) => panic!("runtime error: {:?}", err),
+        }
+    })
+}

@@ -1,6 +1,7 @@
 use ::parser::common::Statement;
 use ::parser::sem_check::check_sem;
 use ::store::table::{TableManager, Table, Attr, AttrType};
+use ::utils::config::Config;
 use ::exec::gen_plan::{
     gen_table_set,
     gen_plan
@@ -20,7 +21,10 @@ macro_rules! gen_plan_helper {
 
 #[test]
 fn test_create_table() {
-    let manager = TableManager::make_ref();
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 2
+        table_file_dir = "table_file""#.to_string());
+    let manager = TableManager::make_ref(&config);
     assert_pattern!(manager.borrow().get_table("msg"), None);
     let mut plan = gen_plan_helper!(
         "create table msg(id int not null primary, content char(233))", &manager);
@@ -34,7 +38,10 @@ fn test_create_table() {
 
 #[test]
 fn test_drop_table() {
-    let manager = TableManager::make_ref();
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 2
+        table_file_dir = "table_file""#.to_string());
+    let manager = TableManager::make_ref(&config);
     let table = Table{
         name : "msg".to_string(),
         attr_list : vec![Attr{

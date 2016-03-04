@@ -6,3 +6,4 @@ authors = ["doyoubi <doyoubihgx@gmail.com>"]
 [dependencies]
 libc = "0.2.7"
 rustc-serialize = "0.3"
+toml = "0.1.27"

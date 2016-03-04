@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use rustc_serialize::json::{encode, decode};
 use ::store::table::{Table, Attr, AttrType, TableManager};
 use ::test::utils::remove_blanks;
+use ::utils::config::Config;
 
 
 #[test]
@@ -101,18 +102,24 @@ fn test_json_translate() {
             }
         ]
     };
-    let mut manager = TableManager::new();
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 5
+        table_file_dir = "table_file""#.to_string());
+    let mut manager = TableManager::new(&config);
     manager.add_table(t1);
     manager.add_table(t2);
     assert_eq!(manager.to_json(), remove_blanks(JSON_DATA));
 
-    let gen_manager = TableManager::from_json(JSON_DATA);
+    let gen_manager = TableManager::from_json(&config, JSON_DATA);
     assert_eq!(gen_manager.to_json(), remove_blanks(JSON_DATA));
 }
 
 #[test]
 fn test_get_table() {
-    let manager = TableManager::from_json(JSON_DATA);
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 5
+        table_file_dir = "table_file""#.to_string());
+    let manager = TableManager::from_json(&config, JSON_DATA);
     let table = extract!(manager.get_table("book"), Some(table), table);
     let table = table.borrow();
     assert_eq!(table.name, "book");
@@ -121,7 +128,10 @@ fn test_get_table() {
 
 #[test]
 fn test_gen_table_set() {
-    let manager = TableManager::from_json(JSON_DATA);
+    let config = Config::new(&r#"
+        max_memory_pool_page_num = 5
+        table_file_dir = "table_file""#.to_string());
+    let manager = TableManager::from_json(&config, JSON_DATA);
     let mut used_table = Vec::new();
     used_table.push("author".to_string());
     used_table.push("book".to_string());
