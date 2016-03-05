@@ -49,17 +49,16 @@ pub struct BitMap {
 }
 
 impl BitMap {
-    pub fn next_tuple_index(&self, mut curr_index : usize) -> usize {
-        curr_index += 1;
-        if curr_index >= self.slot_sum {
+    pub fn next_tuple_index(&self, from : usize) -> usize {
+        if from >= self.slot_sum {
             return self.slot_sum;
         }
-        let mut count = curr_index / 8;
-        let mut bit_count = curr_index % 8;
+        let mut count = from / 8;
+        let mut bit_count = from % 8;
         while count < (self.slot_sum + 7) / 8 {
             let n = unsafe{ read::<u8>((self.data as *const u8).offset(count as isize)) };
-            if n == 0 { count += 1; bit_count = 0; continue; }
             let mut mask = 1 << bit_count;
+            if n < mask { count += 1; bit_count = 0; continue; }
             loop {
                 // assume the bits whose index > slot_sum is 0
                 if mask & n > 0 {
@@ -138,9 +137,7 @@ impl FilePage {
     pub fn new(mem_page : PageRef, tuple_len : usize) -> FilePage {
         let data = mem_page.borrow_mut().data;
         let header_size = 2 * size_of::<u32>();  // PageHeader
-        let page_size = get_page_size();
-        // (n + 8 - 1) / 8 + tuple_len * n <= page_size - header_size
-        let slot_sum = (8 * (page_size - header_size) - 7) / (8 * tuple_len + 1);
+        let slot_sum = get_slot_sum(tuple_len);
         let bitmap_data = unsafe{ data.offset(header_size as isize) };
         let bitmap_size = (slot_sum + 7) / 8;
         let tuple_data = unsafe{ bitmap_data.offset(bitmap_size as isize) };
@@ -239,10 +236,11 @@ impl FilePage {
         }
         assert!(self.is_inuse(tuple_index));
         let mut tuple_data = Vec::new();
-        let mut p = pointer_offset(self.tuple_data, tuple_index * tuple_desc.tuple_len);
-        for i in 0..tuple_desc.attr_desc.len() {
+        let data = pointer_offset(self.tuple_data, tuple_index * tuple_desc.tuple_len);
+        let mut p = data;
+        for i in 1..tuple_desc.attr_desc.len() + 1 {
             tuple_data.push(p);
-            p = Self::attr_offset(p, tuple_desc, i);
+            p = Self::attr_offset(data, tuple_desc, i);
         }
         Some(tuple_data)
     }
@@ -291,6 +289,9 @@ impl TableFile {
             tuple_desc : tuple_desc,
         }
     }
+    pub fn get_page_slot_sum(&self) -> usize {
+        get_slot_sum(self.tuple_desc.tuple_len)
+    }
     pub fn save_to_file(&mut self) {
         // the first page only save header for alignment
         is_match!(self.file.seek(SeekFrom::Start(0)), Ok(..));
@@ -315,18 +316,28 @@ impl TableFile {
     }
     pub fn get_tuple_value(&self, position : usize, attr_position : usize) -> TupleValue {
         // only for test
-        let page_index = position / self.tuple_desc.tuple_len;
-        let tuple_index = position % self.tuple_desc.tuple_len;
+        let page_index = position / self.get_page_slot_sum();
+        let tuple_index = position % self.get_page_slot_sum();
         assert!(self.loaded_pages.get(&page_index).is_some());
         let page = self.loaded_pages.get(&page_index).unwrap();
         page.get_tuple_value(tuple_index, attr_position, &self.tuple_desc)
     }
     pub fn get_tuple_data(&self, position : usize) -> Option<TupleData> {
-        let page_index = position / self.page_sum;
-        let tuple_index = position % self.tuple_desc.tuple_len;
+        let page_index = position / self.get_page_slot_sum();
+        let tuple_index = position % self.get_page_slot_sum();
         assert!(self.loaded_pages.get(&page_index).is_some());
         let page = self.loaded_pages.get(&page_index).unwrap();
         page.get_tuple_data(tuple_index, &self.tuple_desc)
+    }
+    pub fn next_tuple_index(&self, page_index : usize, tuple_index : usize) -> Option<usize> {
+        assert!(self.loaded_pages.get(&page_index).is_some());
+        let page = self.loaded_pages.get(&page_index).unwrap();
+        let next = page.bitmap.next_tuple_index(tuple_index);
+        if next == self.get_page_slot_sum() {
+            None
+        } else {
+            Some(next)
+        }
     }
     pub fn need_new_page(&mut self) -> bool {
         while self.first_free_page < self.page_sum {
@@ -345,14 +356,27 @@ impl TableFile {
         self.loaded_pages.insert(index, file_page);
         self.page_sum += 1;
     }
+    pub fn insert_in_page(&mut self, page_index : usize, value_list : &ValueList) {
+        // for test
+        assert!(page_index < self.page_sum);
+        let file_page = self.loaded_pages.get_mut(&page_index).unwrap();
+        assert!(!file_page.is_full());
+        file_page.insert(value_list, &self.tuple_desc)
+    }
     pub fn get_fd(&self) -> i32 {
         self.file.as_raw_fd()
+    }
+    pub fn is_inuse(&self, page_index : usize, tuple_index : usize) -> bool {
+        assert!(self.loaded_pages.get(&page_index).is_some());
+        let page = self.loaded_pages.get(&page_index).unwrap();
+        page.is_inuse(tuple_index)
     }
 }
 
 impl CacheSaver for TableFile {
     fn save(&mut self, _fd : i32, page_index : u32, _data : DataPtr) {
         self.save_page(page_index as usize);
+        self.loaded_pages.remove(&(page_index as usize));
     }
 }
 
@@ -389,6 +413,12 @@ impl TableFileManager {
         }
         f.insert(value_list);
     }
+    pub fn insert_in_page(&mut self, table : &String, page_index : usize, value_list : &ValueList) {
+        // for test
+        let file = self.get_file(table);
+        self.ensure_page_loaded(&file, page_index);
+        file.borrow_mut().insert_in_page(page_index, value_list);
+    }
     pub fn get_file(&mut self, table : &String) -> TableFileRef {
         self.files.get_mut(table).unwrap().clone()
     }
@@ -397,29 +427,51 @@ impl TableFileManager {
             attr_position : usize) -> TupleValue{
         // only for test
         let file = self.files.get(table).unwrap().clone();
-        let clone = file.clone();
         let page_index = {
             let f = file.borrow_mut();
             position / f.tuple_desc.tuple_len
         };
-        self.ensure_page_loaded(clone, page_index);
+        self.ensure_page_loaded(&file, page_index);
         // declare v only to fight lifetime checker
         let v = file.borrow().get_tuple_value(position, attr_position);
         v
     }
     pub fn get_tuple_data(&mut self, table : &String, position : usize) -> Option<TupleData> {
         let file = self.files.get(table).unwrap().clone();
-        let clone = file.clone();
         let page_index = {
             let f = file.borrow_mut();
-            position / f.tuple_desc.tuple_len
+            position / f.get_page_slot_sum()
         };
-        self.ensure_page_loaded(clone, page_index);
+        self.ensure_page_loaded(&file, page_index);
         // declare v only to fight lifetime checker
         let v = file.borrow().get_tuple_data(position);
         v
     }
-    pub fn ensure_page_loaded(&mut self, file : TableFileRef, page_index : usize) {
+    pub fn get_next_tuple_data(&mut self, table : &String, from : usize) -> Option<(TupleData, usize)> {
+        match self.get_next_position(table, from) {
+            Some(position) => Some((self.get_tuple_data(table, position).unwrap(), position)),
+            None => None,
+        }
+    }
+    pub fn get_next_position(&mut self, table : &String, from : usize) -> Option<usize> {
+        let file = self.get_file(table);
+        let page_sum = file.borrow().page_sum;
+        let slot_sum = file.borrow().get_page_slot_sum();
+        let mut page_index = from / slot_sum;
+        let mut tuple_index = from % slot_sum;
+        while page_index < page_sum {
+            let next = file.borrow().next_tuple_index(page_index, tuple_index);
+            match next {
+                 Some(i) => return Some(page_index * slot_sum + i),
+                 None => {
+                    page_index += 1;
+                    tuple_index = 0;
+                 }
+            }
+        }
+        None
+    }
+    pub fn ensure_page_loaded(&mut self, file : &TableFileRef, page_index : usize) {
         if !file.borrow().loaded_pages.get(&page_index).is_some() {
             let clone = file.clone();
             let mut file = file.borrow_mut();
@@ -432,4 +484,11 @@ impl TableFileManager {
         let file = TableFile::new(name.clone(), table, &self.table_file_dir);
         self.files.insert(name, Rc::new(RefCell::new(file)));
     }
+}
+
+fn get_slot_sum(tuple_len : usize) -> usize {
+    let header_size = 2 * size_of::<u32>();  // PageHeader
+    let page_size = get_page_size();
+    // (n + 8 - 1) / 8 + tuple_len * n <= page_size - header_size
+    (8 * (page_size - header_size) - 7) / (8 * tuple_len + 1)
 }

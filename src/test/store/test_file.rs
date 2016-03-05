@@ -71,7 +71,8 @@ fn test_bitmap()
     assert!(bitmap.is_inuse(8 + 7));
     assert!(!bitmap.is_inuse(8 + 8));
     assert_eq!(bitmap.next_tuple_index(0), 8);
-    assert_eq!(bitmap.next_tuple_index(8), 8 + 7);
+    assert_eq!(bitmap.next_tuple_index(8), 8);
+    assert_eq!(bitmap.next_tuple_index(8 + 1), 8 + 7);
     bitmap.set_inuse(8 + 3, true);
     assert!(!bitmap.is_inuse(8 + 2));
     assert!(bitmap.is_inuse(8 + 3));
@@ -87,10 +88,11 @@ fn test_bitmap()
     for i in 1..8 {
         bitmap.set_inuse(i, true);
     }
-    assert_eq!(bitmap.next_tuple_index(8), 8 + 3);
+    assert_eq!(bitmap.next_tuple_index(8), 8);
     assert_eq!(bitmap.get_first_free_slot(), 8 + 1);
     bitmap.set_inuse(3, false);
     assert_eq!(bitmap.get_first_free_slot(), 3);
+    assert_eq!(bitmap.next_tuple_index(50), bitmap.slot_sum);
 }
 
 fn gen_test_table() -> Table {

@@ -101,7 +101,7 @@ pub type TableManagerRef = Rc<RefCell<TableManager>>;
 #[derive(Debug)]
 pub struct TableManager {
     tables : BTreeMap<String, TableRef>,
-    file_manager : TableFileManager,
+    pub file_manager : TableFileManager,
 }
 
 impl TableManager {

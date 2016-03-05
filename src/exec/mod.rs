@@ -7,3 +7,5 @@ pub mod iter;
 pub mod create_drop;
 #[allow(dead_code)]
 pub mod change;
+#[allow(dead_code)]
+pub mod query;
