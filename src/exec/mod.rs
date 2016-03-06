@@ -9,3 +9,5 @@ pub mod create_drop;
 pub mod change;
 #[allow(dead_code)]
 pub mod query;
+#[allow(dead_code)]
+pub mod evaluate;

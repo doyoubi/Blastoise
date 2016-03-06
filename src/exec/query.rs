@@ -1,7 +1,8 @@
 use std::boxed::Box;
 use std::option::Option;
 use ::store::table::TableManagerRef;
-use ::store::tuple::TupleData;
+use ::store::tuple::{TupleData, TupleDesc};
+use ::parser::condition::CondRef;
 use super::iter::{ExecIter, ExecIterRef};
 
 
@@ -55,4 +56,12 @@ impl ExecIter for FileScan {
             }
         }
     }
+}
+
+
+#[derive(Debug)]
+struct Filter {
+    data_source : ExecIterRef,
+    condition : CondRef,
+    tuple_desc : TupleDesc,
 }

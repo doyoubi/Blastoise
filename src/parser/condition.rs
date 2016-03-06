@@ -94,7 +94,7 @@ fn unary_fmt<T>(operator: &str, operant : &T, f : &mut Formatter) -> fmt::Result
     write!(f, "({} {})", operator, operant)
 }
 
-type CondRef = Box<ConditionExpr>;
+pub type CondRef = Box<ConditionExpr>;
 pub type ParseCondResult = Result<ConditionExpr, ErrorList>;
 
 #[derive(Debug)]

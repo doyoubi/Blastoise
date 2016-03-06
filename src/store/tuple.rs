@@ -10,7 +10,7 @@ pub enum TupleValue {
     Char(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TupleDesc {
     pub attr_desc : Vec<AttrType>,
     pub tuple_len : usize,
