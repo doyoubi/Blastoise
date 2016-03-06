@@ -84,10 +84,10 @@ impl AttributeExpr {
         })
     }
     
-    pub fn get_attr(&self) -> (&Option<String>, &String) {
+    pub fn get_attr(&mut self) -> (&mut Option<String>, &mut String) {
         match self {
-            &AttributeExpr::TableAttr{ref table, ref attr} => (table, attr),
-            &AttributeExpr::AggreFuncCall{ref table, ref attr, ..} => (table, attr),
+            &mut AttributeExpr::TableAttr{ref mut table, ref mut attr} => (table, attr),
+            &mut AttributeExpr::AggreFuncCall{ref mut table, ref mut attr, ..} => (table, attr),
         }
     }
 }

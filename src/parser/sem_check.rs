@@ -16,61 +16,61 @@ use ::store::table::{TableSet, AttrType, Attr};
 pub type SemResult = Result<(), ErrorList>;
 
 
-pub fn check_sem(statement : &Statement, table_set : &TableSet) -> SemResult {
+pub fn check_sem(statement : &mut Statement, table_set : &TableSet) -> SemResult {
     match statement {
-        &Statement::Select(ref stmt) => check_select(stmt, table_set),
-        &Statement::Update(ref stmt) => check_update(stmt, table_set),
-        &Statement::Insert(ref stmt) => check_insert(stmt, table_set),
-        &Statement::Delete(ref stmt) => check_delete(stmt, table_set),
-        &Statement::Create(ref stmt) => check_create(stmt, table_set),
-        &Statement::Drop(ref stmt) => check_drop(stmt, table_set),
+        &mut Statement::Select(ref mut stmt) => check_select(stmt, table_set),
+        &mut Statement::Update(ref mut stmt) => check_update(stmt, table_set),
+        &mut Statement::Insert(ref mut stmt) => check_insert(stmt, table_set),
+        &mut Statement::Delete(ref mut stmt) => check_delete(stmt, table_set),
+        &mut Statement::Create(ref stmt) => check_create(stmt, table_set),
+        &mut Statement::Drop(ref stmt) => check_drop(stmt, table_set),
     }
 }
 
-pub fn check_select(stmt : &SelectStatement, table_set : &TableSet) -> SemResult {
-    if let Some(ref cond) = stmt.where_condition {
+pub fn check_select(stmt : &mut SelectStatement, table_set : &TableSet) -> SemResult {
+    if let Some(ref mut cond) = stmt.where_condition {
         try!(check_condition(cond, table_set, &None));
     }
-    if let Some(GroupbyHaving{ref attr, ref having_condition}) = stmt.groupby_having {
+    if let Some(GroupbyHaving{ref mut attr, ref mut having_condition}) = stmt.groupby_having {
         let (table, attr) = attr.get_attr();
         try!(check_attr_exist(table, attr, table_set));
         let group_by_attr = Some((table.clone(), attr.clone()));
-        if let &Some(ref cond) = having_condition {
+        if let &mut Some(ref mut cond) = having_condition {
             try!(check_condition(cond, table_set, &group_by_attr));
         }
         match stmt.select_expr {
             SelectExpr::AllAttribute =>
                 return Err(create_error(CompileErrorType::SemSelectAllWithGroupBy,
                     "can't select all when using group by".to_string())),
-            SelectExpr::AttrList(ref attr_list) => {
+            SelectExpr::AttrList(ref mut attr_list) => {
                 for attr_expr in attr_list {
                     try!(check_attr(attr_expr, table_set, &group_by_attr));
                 }
             }
         }
-        if let Some(ref attr) = stmt.order_by_attr {
+        if let Some(ref mut attr) = stmt.order_by_attr {
             try!(check_attr(attr, table_set, &group_by_attr));
         }
     } else {
-        if let SelectExpr::AttrList(ref attr_list) = stmt.select_expr {
+        if let SelectExpr::AttrList(ref mut attr_list) = stmt.select_expr {
             for attr_expr in attr_list {
                 try!(check_attr(attr_expr, table_set, &None));
             }
         }
-        if let Some(ref attr) = stmt.order_by_attr {
+        if let Some(ref mut attr) = stmt.order_by_attr {
             try!(check_attr(attr, table_set, &None));
         }
     }
     Ok(())
 }
 
-pub fn check_update(stmt : &UpdateStatement, table_set : &TableSet) -> SemResult {
+pub fn check_update(stmt : &mut UpdateStatement, table_set : &TableSet) -> SemResult {
     try!(check_table_exist(&stmt.table, table_set));
-    if let Some(ref cond) = stmt.where_condition {
+    if let Some(ref mut cond) = stmt.where_condition {
         try!(check_condition(cond, table_set, &None));
     }
-    for assign in &stmt.set_list {
-        try!(check_attr_exist(&Some(stmt.table.clone()), &assign.attr, table_set));
+    for assign in &mut stmt.set_list {
+        try!(check_attr_exist(&mut Some(stmt.table.clone()), &mut assign.attr, table_set));
         let attr = table_set.get_attr(&Some(stmt.table.clone()), &assign.attr).unwrap();
         if attr.primary {
             return Err(create_error(CompileErrorType::SemChangePrimaryAttr,
@@ -81,7 +81,7 @@ pub fn check_update(stmt : &UpdateStatement, table_set : &TableSet) -> SemResult
     Ok(())
 }
 
-pub fn check_insert(stmt : &InsertStatement, table_set : &TableSet) -> SemResult {
+pub fn check_insert(stmt : &mut InsertStatement, table_set : &TableSet) -> SemResult {
     try!(check_table_exist(&stmt.table, table_set));
     let value_list  = &stmt.value_list;
     let attr_list = table_set.gen_attr_list(&stmt.table);  // table should exist
@@ -121,25 +121,25 @@ pub fn check_assign(value : &ValueExpr, attr : &Attr) -> SemResult {
     Ok(())
 }
 
-pub fn check_delete(stmt : &DeleteStatement, table_set : &TableSet) -> SemResult {
+pub fn check_delete(stmt : &mut DeleteStatement, table_set : &TableSet) -> SemResult {
     try!(check_table_exist(&stmt.table, table_set));
-    match &stmt.where_condition {
-        &Some(ref cond) => check_condition(cond, table_set, &None),
-        &None => Ok(()),
+    match &mut stmt.where_condition {
+        &mut Some(ref mut cond) => check_condition(cond, table_set, &None),
+        &mut None => Ok(()),
     }
 }
 
 pub fn check_condition(
-        condition : &ConditionExpr,
+        condition : &mut ConditionExpr,
         table_set : &TableSet,
         group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
     match condition {
-        &ConditionExpr::NotExpr{ref operant} => check_condition(operant, table_set, &group_by_attr),
-        &ConditionExpr::LogicExpr{ref lhs, ref rhs, .. } => {
+        &mut ConditionExpr::NotExpr{ref mut operant} => check_condition(operant, table_set, &group_by_attr),
+        &mut ConditionExpr::LogicExpr{ref mut lhs, ref mut rhs, .. } => {
             try!(check_condition(lhs, table_set, &group_by_attr));
             check_condition(rhs, table_set, &group_by_attr)
         }
-        &ConditionExpr::CmpExpr{ref lhs, ref rhs, op } => {
+        &mut ConditionExpr::CmpExpr{ref mut lhs, ref mut rhs, op } => {
             let must_be_num_type = match op {
                 CmpOp::LT | CmpOp::GT | CmpOp::LE | CmpOp::GE => {
                     match (lhs.get_type(), rhs.get_type()) {
@@ -164,7 +164,7 @@ pub fn check_condition(
                 }
                 CmpOp::Is | CmpOp::IsNot => {
                     match lhs {
-                        &CmpOperantExpr::Arith(ArithExpr::Attr(ref attr)) => {
+                        &mut CmpOperantExpr::Arith(ArithExpr::Attr(ref mut attr)) => {
                             try!(check_is_nullable(attr, table_set));
                         }
                         _ => return Err(create_error(CompileErrorType::SemInvalidValueType,
@@ -172,17 +172,17 @@ pub fn check_condition(
                                 in the left of `is` and `is not`, found {}", lhs)))
                     }
                     match rhs {
-                        &CmpOperantExpr::Value(ValueExpr{value_type : ValueType::Null, ..}) => (),
+                        &mut CmpOperantExpr::Value(ValueExpr{value_type : ValueType::Null, ..}) => (),
                         _ => return Err(create_error(CompileErrorType::SemInvalidValueType,
                             format!("only null is allowd after `is` or `is not`, found {}", rhs)))
                     }
                     false
                 }
             };
-            if let &CmpOperantExpr::Arith(ref lhs_arith) = lhs {
+            if let &mut CmpOperantExpr::Arith(ref mut lhs_arith) = lhs {
                 try!(check_arith_expr(lhs_arith, table_set, must_be_num_type, &group_by_attr));
             }
-            if let &CmpOperantExpr::Arith(ref rhs_arith) = rhs {
+            if let &mut CmpOperantExpr::Arith(ref mut rhs_arith) = rhs {
                 try!(check_arith_expr(rhs_arith, table_set, must_be_num_type, &group_by_attr));
             }
             Ok(())
@@ -190,7 +190,7 @@ pub fn check_condition(
     }
 }
 
-pub fn check_is_nullable(attr_expr : &AttributeExpr, table_set : &TableSet) -> SemResult {
+pub fn check_is_nullable(attr_expr : &mut AttributeExpr, table_set : &TableSet) -> SemResult {
     let (table, attr) = attr_expr.get_attr();
     try!(check_attr_exist(table, attr, table_set));
     if !table_set.get_attr(table, attr).unwrap().nullable {
@@ -201,24 +201,24 @@ pub fn check_is_nullable(attr_expr : &AttributeExpr, table_set : &TableSet) -> S
 }
 
 pub fn check_arith_expr(
-        arith : &ArithExpr,
+        arith : &mut ArithExpr,
         table_set : &TableSet,
         must_be_num_type : bool,
         group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
     match arith {
-        &ArithExpr::Value(ValueExpr{value_type, ..}) => {
+        &mut ArithExpr::Value(ValueExpr{value_type, ..}) => {
             // already guranteed by grammar
             assert!(value_type == ValueType::Integer || value_type == ValueType::Float);
             Ok(())
         }
-        &ArithExpr::MinusExpr{ref operant} => {
+        &mut ArithExpr::MinusExpr{ref mut operant} => {
             check_arith_expr(operant, table_set, must_be_num_type, &group_by_attr)
         }
-        &ArithExpr::BinaryExpr{ref lhs, ref rhs, ..} => {
+        &mut ArithExpr::BinaryExpr{ref mut lhs, ref mut rhs, ..} => {
             try!(check_arith_expr(lhs, table_set, must_be_num_type, &group_by_attr));
             check_arith_expr(rhs, table_set, must_be_num_type, &group_by_attr)
         }
-        &ArithExpr::Attr(ref attr) => {
+        &mut ArithExpr::Attr(ref mut attr) => {
             try!(check_attr(attr, table_set, &group_by_attr));
             if must_be_num_type {
                 check_attr_num_type(attr, table_set)
@@ -229,31 +229,34 @@ pub fn check_arith_expr(
     }
 }
 
-pub fn check_attr_num_type(attr_expr : &AttributeExpr, table_set : &TableSet) -> SemResult {
+pub fn check_attr_num_type(attr_expr : &mut AttributeExpr, table_set : &TableSet) -> SemResult {
+    let err_msg = format!("invalid attribute type: {}", attr_expr);
     let (table, attr) = attr_expr.get_attr();
     let attr = table_set.get_attr(table, attr).unwrap();
     if let AttrType::Char{..} = attr.attr_type {
-        return Err(create_error(CompileErrorType::SemInvalidValueType,
-            format!("invalid attribute type: {}", attr_expr)));
+        return Err(create_error(CompileErrorType::SemInvalidValueType, err_msg));
     }
     Ok(())
 }
 
 pub fn check_attr(
-        attr_expr : &AttributeExpr,
+        attr_expr : &mut AttributeExpr,
         table_set : &TableSet,
         group_by_attr : &Option<(Option<String>, String)>) -> SemResult {
+    let invalid_aggre_func_use_err_msg = format!("can't use {} in `where`", attr_expr);
+    let should_use_group_by_attr_err_msg =
+        format!("expected group by attribute {:?}, got {}", group_by_attr, attr_expr);
     let (table, attr) = match attr_expr {
-        &AttributeExpr::TableAttr{ref table, ref attr} => {
+        &mut AttributeExpr::TableAttr{ref mut table, ref mut attr} => {
             try!(check_attr_exist(table, attr, table_set));
             (table, attr)
         }
-        &AttributeExpr::AggreFuncCall{ref func, ref table, ref attr} => {
+        &mut AttributeExpr::AggreFuncCall{ref func, ref mut table, ref mut attr} => {
             try!(check_aggre_func_name(func));
             try!(check_attr_exist(table, attr, table_set));
             if let &None = group_by_attr {
                 return Err(create_error(CompileErrorType::SemInvalidAggregateFunctionUse,
-                    format!("can't use {} in `where`", attr_expr)));
+                    invalid_aggre_func_use_err_msg));
             }
             (table, attr)
         }
@@ -263,16 +266,18 @@ pub fn check_attr(
         &None => return Ok(()),
     };
     // unique already guranteed
-    if (!is_match!(group_by_attr.0, None) && !is_match!(table, &None) && group_by_attr.0 != *table)
+    if (!is_match!(group_by_attr.0, None) && !is_match!(table, &mut None) && group_by_attr.0 != *table)
             || group_by_attr.1 != *attr {
         return Err(create_error(CompileErrorType::SemShouldUseGroupByAttribute,
-            format!("expected group by attribute {:?}, got {}", group_by_attr, attr_expr)))
+            should_use_group_by_attr_err_msg))
     }
     Ok(())
 }
 
-pub fn check_attr_exist(table : &Option<String>, attr : &str, table_set : &TableSet) -> SemResult {
+pub fn check_attr_exist(table : &mut Option<String>, attr : &mut String,
+        table_set : &TableSet) -> SemResult {
     if table_set.get_attr(table, attr).is_some() {
+        table_set.complete_table_name(table, attr);
         Ok(())
     } else {
         Err(create_error(CompileErrorType::SemInvalidAttribute,

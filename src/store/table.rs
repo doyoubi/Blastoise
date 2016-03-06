@@ -86,6 +86,17 @@ impl TableSet {
             _ => None,  // not found or multiple attribute found
         }
     }
+    pub fn complete_table_name(&self, table : &mut Option<String>, attr : &mut String) {
+        // should called after get_attr to confirm only one result exist
+        if table.is_some() { return; }
+        for (name, t) in self.tables.iter() {
+            if let Some(..) = t.attr_list.iter().filter(|a| a.name == *attr).next() {
+                *table = Some(name.clone());
+                return;
+            }
+        }
+        panic!("attribute not exist");
+    }
     pub fn gen_attr_list(&self, table : &String) -> Vec<Attr> {
         // table should exist
         self.tables.get(table).unwrap().attr_list.clone()

@@ -136,69 +136,69 @@ fn test_check_condition() {
     // arithmatic type correctness already guranteed by grammar
     {// comparasion type check
         let mut table_set = TableSet::new();
-        let condition = gen_result!(ConditionExpr::parse, "1 < 0 or 1 = 2");
-        assert_ok!(check_condition(&condition, &table_set, &None));
+        let mut condition = gen_result!(ConditionExpr::parse, "1 < 0 or 1 = 2");
+        assert_ok!(check_condition(&mut condition, &table_set, &None));
 
-        let condition = gen_result!(ConditionExpr::parse, "1 = null");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+        let mut condition = gen_result!(ConditionExpr::parse, "1 = null");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
-        let condition = gen_result!(ConditionExpr::parse, "1 < \"i am string\"");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+        let mut condition = gen_result!(ConditionExpr::parse, "1 < \"i am string\"");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
         
-        let condition = gen_result!(ConditionExpr::parse, "\"aaa\" = \"bbb\"");
-        assert_ok!(check_condition(&condition, &table_set, &None));
+        let mut condition = gen_result!(ConditionExpr::parse, "\"aaa\" = \"bbb\"");
+        assert_ok!(check_condition(&mut condition, &table_set, &None));
 
         add_table(&mut table_set);
-        let condition = gen_result!(ConditionExpr::parse, "author_id is not null");
-        assert_ok!(check_condition(&condition, &table_set, &None));
+        let mut condition = gen_result!(ConditionExpr::parse, "author_id is not null");
+        assert_ok!(check_condition(&mut condition, &table_set, &None));
 
-        let condition = gen_result!(ConditionExpr::parse, "author_id is 1");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+        let mut condition = gen_result!(ConditionExpr::parse, "author_id is 1");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
-        let condition = gen_result!(ConditionExpr::parse, "2 is null");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+        let mut condition = gen_result!(ConditionExpr::parse, "2 is null");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
     }
     {// attirbute check
         let mut table_set = TableSet::new();
-        let condition = gen_result!(ConditionExpr::parse, "a is null");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidAttribute);
+        let mut condition = gen_result!(ConditionExpr::parse, "a is null");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidAttribute);
 
         add_table(&mut table_set);
-        let condition = gen_result!(ConditionExpr::parse, "author_id is null");
-        assert_ok!(check_condition(&condition, &table_set, &None));
+        let mut condition = gen_result!(ConditionExpr::parse, "author_id is null");
+        assert_ok!(check_condition(&mut condition, &table_set, &None));
 
-        let condition = gen_result!(ConditionExpr::parse, "book.author_id is null");
-        assert_ok!(check_condition(&condition, &table_set, &None));
+        let mut condition = gen_result!(ConditionExpr::parse, "book.author_id is null");
+        assert_ok!(check_condition(&mut condition, &table_set, &None));
 
-        let condition = gen_result!(ConditionExpr::parse, "book.id > 1");
-        assert_ok!(check_condition(&condition, &table_set,
+        let mut condition = gen_result!(ConditionExpr::parse, "book.id > 1");
+        assert_ok!(check_condition(&mut condition, &table_set,
             &Some((Some("book".to_string()), "id".to_string()))));
-        assert_err!(check_condition(&condition, &table_set,
+        assert_err!(check_condition(&mut condition, &table_set,
             &Some((Some("book".to_string()), "author_id".to_string()))),
             CompileErrorType::SemShouldUseGroupByAttribute);
 
-        let condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
-        assert_ok!(check_condition(&condition, &table_set,
+        let mut condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
+        assert_ok!(check_condition(&mut condition, &table_set,
             &Some((Some("book".to_string()), "id".to_string()))));
 
-        let condition = gen_result!(ConditionExpr::parse, "invalid_func(book.id) > 1");
-        assert_err!(check_condition(&condition, &table_set,
+        let mut condition = gen_result!(ConditionExpr::parse, "invalid_func(book.id) > 1");
+        assert_err!(check_condition(&mut condition, &table_set,
             &Some((Some("book".to_string()), "id".to_string()))),
             CompileErrorType::SemInvalidAggreFuncName);
 
-        let condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
-        assert_err!(check_condition(&condition, &table_set, &None),
+        let mut condition = gen_result!(ConditionExpr::parse, "sum(book.id) > 1");
+        assert_err!(check_condition(&mut condition, &table_set, &None),
             CompileErrorType::SemInvalidAggregateFunctionUse);
 
-        let condition = gen_result!(ConditionExpr::parse, "book.name > 0");
-        assert_err!(check_condition(&condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
+        let mut condition = gen_result!(ConditionExpr::parse, "book.name > 0");
+        assert_err!(check_condition(&mut condition, &table_set, &None), CompileErrorType::SemInvalidValueType);
 
-        let condition = gen_result!(ConditionExpr::parse, "author.name is null");
-        assert_err!(check_condition(&condition, &table_set, &None),
+        let mut condition = gen_result!(ConditionExpr::parse, "author.name is null");
+        assert_err!(check_condition(&mut condition, &table_set, &None),
             CompileErrorType::SemAttributeNotNullable);
 
-        let condition = gen_result!(ConditionExpr::parse, "id is null");
-        assert_err!(check_condition(&condition, &table_set, &None),
+        let mut condition = gen_result!(ConditionExpr::parse, "id is null");
+        assert_err!(check_condition(&mut condition, &table_set, &None),
             CompileErrorType::SemInvalidAttribute);
     }
 }
@@ -207,26 +207,26 @@ fn test_check_condition() {
 fn test_check_insert() {
     let mut table_set = TableSet::new();
     add_table(&mut table_set);
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\")");
-    assert_ok!(check_insert(&insert, &table_set));
+    let mut insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\")");
+    assert_ok!(check_insert(&mut insert, &table_set));
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\", 3)");
-    assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemInvalidInsertValuesNum);
+    let mut insert = gen_result!(InsertStatement::parse, "insert book values(1, 2, \"book name\", 3)");
+    assert_err!(check_insert(&mut insert, &table_set), CompileErrorType::SemInvalidInsertValuesNum);
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, 2.0, \"book name\")");
-    assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemInvalidInsertValueType);
+    let mut insert = gen_result!(InsertStatement::parse, "insert book values(1, 2.0, \"book name\")");
+    assert_err!(check_insert(&mut insert, &table_set), CompileErrorType::SemInvalidInsertValueType);
 
-    let insert = gen_result!(InsertStatement::parse, "insert author values(1, \"doyoubi\")");
-    assert_ok!(check_insert(&insert, &table_set));
-    let insert = gen_result!(InsertStatement::parse,
+    let mut insert = gen_result!(InsertStatement::parse, "insert author values(1, \"doyoubi\")");
+    assert_ok!(check_insert(&mut insert, &table_set));
+    let mut insert = gen_result!(InsertStatement::parse,
         "insert author values(1, \"it is difficult to come up with a long name\")");
-    assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemInvalidInsertCharLen);
+    assert_err!(check_insert(&mut insert, &table_set), CompileErrorType::SemInvalidInsertCharLen);
 
-    let insert = gen_result!(InsertStatement::parse, "insert author values(1, null)");
-    assert_err!(check_insert(&insert, &table_set), CompileErrorType::SemAttributeNotNullable);
+    let mut insert = gen_result!(InsertStatement::parse, "insert author values(1, null)");
+    assert_err!(check_insert(&mut insert, &table_set), CompileErrorType::SemAttributeNotNullable);
 
-    let insert = gen_result!(InsertStatement::parse, "insert book values(1, null, \"book name\")");
-    assert_ok!(check_insert(&insert, &table_set));
+    let mut insert = gen_result!(InsertStatement::parse, "insert book values(1, null, \"book name\")");
+    assert_ok!(check_insert(&mut insert, &table_set));
 }
 
 #[test]
@@ -234,21 +234,21 @@ fn test_check_update() {
     let mut table_set = TableSet::new();
     add_table(&mut table_set);
 
-    let update = gen_result!(UpdateStatement::parse,
+    let mut update = gen_result!(UpdateStatement::parse,
         "update book set author_id = 2, name = \"doyoubi\" where book.id = 1");
-    assert_ok!(check_update(&update, &table_set));
+    assert_ok!(check_update(&mut update, &table_set));
 
-    let update = gen_result!(UpdateStatement::parse, "update book set id = 1");
-    assert_err!(check_update(&update, &table_set), CompileErrorType::SemChangePrimaryAttr);
+    let mut update = gen_result!(UpdateStatement::parse, "update book set id = 1");
+    assert_err!(check_update(&mut update, &table_set), CompileErrorType::SemChangePrimaryAttr);
 
-    let update = gen_result!(UpdateStatement::parse, "update book set invalid_attr = 1");
-    assert_err!(check_update(&update, &table_set), CompileErrorType::SemInvalidAttribute);
+    let mut update = gen_result!(UpdateStatement::parse, "update book set invalid_attr = 1");
+    assert_err!(check_update(&mut update, &table_set), CompileErrorType::SemInvalidAttribute);
 
-    let update = gen_result!(UpdateStatement::parse, "update book set author_id = 2.2");
-    assert_err!(check_update(&update, &table_set), CompileErrorType::SemInvalidInsertValueType);
+    let mut update = gen_result!(UpdateStatement::parse, "update book set author_id = 2.2");
+    assert_err!(check_update(&mut update, &table_set), CompileErrorType::SemInvalidInsertValueType);
 
-    let update = gen_result!(UpdateStatement::parse, "update author set name = null");
-    assert_err!(check_update(&update, &table_set), CompileErrorType::SemAttributeNotNullable);
+    let mut update = gen_result!(UpdateStatement::parse, "update author set name = null");
+    assert_err!(check_update(&mut update, &table_set), CompileErrorType::SemAttributeNotNullable);
 }
 
 #[test]
@@ -256,48 +256,62 @@ fn test_check_select() {
     let mut table_set = TableSet::new();
     add_table(&mut table_set);
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select book.id, book.name from book where book.id > 1");
-    assert_ok!(check_select(&select, &table_set));
+    assert_ok!(check_select(&mut select, &table_set));
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select author_id, min(book.author_id) from book where book.id > 1 \
         group by author_id having min(author_id) > 2 and author_id > 3");
-    assert_ok!(check_select(&select, &table_set));
+    assert_ok!(check_select(&mut select, &table_set));
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select book.author_id, min(book.author_id) from book where book.id > 1 \
         group by author_id having min(book.id) > 2 and book.id > 3");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select book.id, min(book.id) from book where book.id > 1 \
         group by author_id having min(author_id) > 2 and author_id > 3");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
 
-    let select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+    let mut select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemInvalidAttribute);
 
-    let select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+    let mut select = gen_result!(SelectStatement::parse, "select * from book where num = 1");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemInvalidAttribute);
 
-    let select = gen_result!(SelectStatement::parse, "select * from book group by book.name");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemSelectAllWithGroupBy);
+    let mut select = gen_result!(SelectStatement::parse, "select * from book group by book.name");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemSelectAllWithGroupBy);
 
-    let select = gen_result!(SelectStatement::parse, "select num from book");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+    let mut select = gen_result!(SelectStatement::parse, "select num from book");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemInvalidAttribute);
 
-    let select = gen_result!(SelectStatement::parse, "select book.name from book order by book.id");
-    assert_ok!(check_select(&select, &table_set));
+    let mut select = gen_result!(SelectStatement::parse, "select book.name from book order by book.id");
+    assert_ok!(check_select(&mut select, &table_set));
 
-    let select = gen_result!(SelectStatement::parse, "select book.name from book order by num");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemInvalidAttribute);
+    let mut select = gen_result!(SelectStatement::parse, "select book.name from book order by num");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemInvalidAttribute);
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select book.name from book group by book.name order by book.id");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
 
-    let select = gen_result!(SelectStatement::parse,
+    let mut select = gen_result!(SelectStatement::parse,
         "select book.id from book group by book.name order by book.name");
-    assert_err!(check_select(&select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemShouldUseGroupByAttribute);
+}
+
+#[test]
+fn test_complete_table_in_attribute() {
+    let mut table_set = TableSet::new();
+    add_table(&mut table_set);
+
+    let mut select = gen_result!(SelectStatement::parse,
+        "select author_id, min(author_id) from book where book.id > 1 \
+        group by author_id having min(author_id) > 2 and author_id > 3");
+    assert_ok!(check_select(&mut select, &table_set));
+    assert_eq!(format!("{}", select), "select (book.author_id), min(book.author_id) from book \
+        where ((book.id) > Integer(1)) group by (book.author_id) \
+        having ((min(book.author_id) > Integer(2)) and ((book.author_id) > Integer(3)))");
 }
