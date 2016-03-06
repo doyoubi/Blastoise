@@ -7,3 +7,6 @@ mod test_change;
 #[allow(dead_code)]
 #[allow(unused_imports)]
 mod test_query;
+#[allow(dead_code)]
+#[allow(unused_imports)]
+mod test_evaluate;

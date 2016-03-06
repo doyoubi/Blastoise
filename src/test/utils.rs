@@ -82,6 +82,13 @@ macro_rules! gen_plan_helper {
     })
 }
 
+macro_rules! gen_parse_result {
+    ($class:ident :: $parse_func:ident, $input_str:expr) => ({
+        let tokens = gen_token!($input_str);
+        extract!($class::$parse_func(&mut tokens.iter()), Ok(result), result)
+    })
+}
+
 // test code in ::utils
 #[test]
 fn test_raw_str_convert() {
