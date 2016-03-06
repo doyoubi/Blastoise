@@ -14,12 +14,16 @@ fn gen_count(n : u32) -> CountRef {
 struct MockValue {
     pub callback_called_times : CountRef,
     pub key : u64,
+    pub pinned : bool,
 }
 
 impl CacheValue for MockValue {
     type KeyType = u64;
     fn pop_callback(&mut self, _new_value : &mut Self) {
         self.callback_called_times.set((*self.callback_called_times).get() + 1);
+    }
+    fn is_pinned(&self) -> bool {
+        self.pinned
     }
 }
 
@@ -28,12 +32,21 @@ impl MockValue {
         MockValue{
             callback_called_times : gen_count(0),  // not used
             key : k,
+            pinned : false,
+        }
+    }
+    fn new_pinned(k : u64) -> Self {
+        MockValue{
+            callback_called_times : gen_count(0),  // not used
+            key : k,
+            pinned : true,
         }
     }
     fn new_with_pop_count(k : u64, count : CountRef) -> Self {
         MockValue{
             callback_called_times : count,
             key : k,
+            pinned : false,
         }
     }
 }
@@ -189,4 +202,30 @@ fn test_callback() {
         assert_eq!(count.get(), 1);
         assert_head!(c, 2);
     }
+}
+
+#[test]
+fn test_pinned() {
+    let mut c = LruCache::new(3);
+    c.put(&1, MockValue::new_pinned(1));
+    c.put(&2, MockValue::new_pinned(2));
+    let count = gen_count(0);
+    c.put(&3, MockValue::new_with_pop_count(3, count.clone()));
+    assert_head!(c, 3);
+    c.put(&4, MockValue::new(4));
+    assert_eq!(count.get(), 1);
+    assert_pattern!(c.get(&4), Some(..));
+    assert_pattern!(c.get(&1), Some(..));
+    assert_pattern!(c.get(&2), Some(..));
+    assert_pattern!(c.get(&3), None);
+}
+
+#[test]
+#[should_panic]
+fn test_page_pool_full() {
+    let mut c = LruCache::new(3);
+    c.put(&1, MockValue::new_pinned(1));
+    c.put(&2, MockValue::new_pinned(2));
+    c.put(&3, MockValue::new_pinned(3));
+    c.put(&4, MockValue::new_pinned(4));
 }

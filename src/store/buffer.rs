@@ -42,17 +42,22 @@ pub struct Page {
     pub data : DataPtr,
     pub dirty : bool,
     pub saver : CacheSaverRef,
+    pub pinned : bool,
 }
 
 impl CacheValue for PageRef {
     type KeyType = PageKey;
     fn pop_callback(&mut self, new_value : &mut PageRef) {
+        assert!(!self.is_pinned());
         let mut old_page = self.borrow_mut();
         assert!(!old_page.data.is_null());
         let mut new_page = new_value.borrow_mut();
         old_page.save();
         new_page.data = old_page.data;  // place here to get around the crash problem
         old_page.data = null_mut();
+    }
+    fn is_pinned(&self) -> bool {
+        self.borrow().pinned
     }
 }
 
@@ -64,6 +69,7 @@ impl Page {
             data : null_mut(),
             dirty : false,
             saver : saver,
+            pinned : false,
         }
     }
     pub fn alloc(&mut self) {

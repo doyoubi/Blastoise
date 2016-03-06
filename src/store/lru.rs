@@ -9,6 +9,7 @@ use std::fmt::Debug;
 pub trait CacheValue : Clone + Debug {
     type KeyType : Hash;
     fn pop_callback(&mut self, new_value : &mut Self);
+    fn is_pinned(&self) -> bool;
 }
 
 
@@ -116,12 +117,18 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         let hash_map = &mut self.hash_map;
         assert!(!hash_map.get(&k).is_some());
         let head = &mut self.head;
-        let tail = &mut self.tail;
+        let mut tail = &mut self.tail;
 
-        let old_value = &mut dre!(*tail).value;
-        if let &mut Some(ref mut old) = old_value {
-            old.pop_callback(&mut value);
-            hash_map.remove(&dre!(*tail).key);
+        let first_gotten_tail : NodePtr<ValueType> = *tail;
+        while let &mut Some(ref mut old) = &mut dre!(*tail).value {
+            if !old.is_pinned() {
+                old.pop_callback(&mut value);
+                hash_map.remove(&dre!(*tail).key);
+                break;
+            }
+            let clone = tail.clone();
+            Self::node_to_head(head, tail, clone);
+            assert!(first_gotten_tail != tail.clone());  // all pages were pinned
         }
 
         let node = tail.clone();
