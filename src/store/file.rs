@@ -484,6 +484,15 @@ impl TableFileManager {
         let file = TableFile::new(name.clone(), table, &self.table_file_dir);
         self.files.insert(name, Rc::new(RefCell::new(file)));
     }
+    pub fn pin_page(&mut self, fd : i32, page_index : u32) {
+        self.page_pool.pin_page(fd, page_index);
+    }
+    pub fn unpin_page(&mut self, fd : i32, page_index : u32) {
+        self.page_pool.unpin_page(fd, page_index);
+    }
+    pub fn get_unpinned_num(&self) -> usize {
+        self.page_pool.get_unpinned_num()
+    }
 }
 
 fn get_slot_sum(tuple_len : usize) -> usize {

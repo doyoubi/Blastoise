@@ -98,12 +98,14 @@ impl Drop for Page {
 pub struct PagePool {
     // should be protected by mutex
     cache: LruCache<PageRef>,
+    unpinned : usize,
 }
 
 impl PagePool {
     pub fn new(capacity : usize) -> PagePool {
         PagePool{
             cache : LruCache::new(capacity),
+            unpinned : capacity,
         }
     }
     pub fn get_page(&mut self, fd : i32, page_index : u32) -> Option<PageRef> {
@@ -118,4 +120,18 @@ impl PagePool {
         }
         self.cache.put(&key, Rc::new(RefCell::new(new_page)));
     }
+    pub fn pin_page(&mut self, fd : i32, page_index : u32) {
+        assert!(self.unpinned > 0);
+        self.unpinned -= 1;
+        let page = self.get_page(fd, page_index).unwrap();
+        page.borrow_mut().pinned = true;
+    }
+    pub fn unpin_page(&mut self, fd : i32, page_index : u32) {
+        assert!(self.unpinned < self.cache.capacity);
+        self.unpinned += 1;
+        let page = self.get_page(fd, page_index).unwrap();
+        assert!(page.borrow().pinned);
+        page.borrow_mut().pinned = false;
+    }
+    pub fn get_unpinned_num(&self) -> usize { self.unpinned }
 }

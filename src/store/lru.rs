@@ -36,7 +36,7 @@ impl<ValueType> Node<ValueType> {
 
 #[derive(Debug)]
 pub struct LruCache<ValueType : Clone> {
-    capacity : usize,
+    pub capacity : usize,
     hash_map : HashMap<u64, NodePtr<ValueType>>,
     node_list : Vec<Node<ValueType>>,
     head : NodePtr<ValueType>,
