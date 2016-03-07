@@ -2,8 +2,11 @@ use std::boxed::Box;
 use std::option::Option;
 use ::store::table::TableManagerRef;
 use ::store::tuple::{TupleData, TupleDesc};
+use ::store::table::IndexMap;
 use ::parser::condition::CondRef;
 use super::iter::{ExecIter, ExecIterRef};
+use super::evaluate::PtrMap;
+use super::evaluate::eval_cond;
 
 
 #[derive(Debug)]
@@ -60,8 +63,55 @@ impl ExecIter for FileScan {
 
 
 #[derive(Debug)]
-struct Filter {
+pub struct Filter {
     data_source : ExecIterRef,
     condition : CondRef,
+    index_map : IndexMap,
     tuple_desc : TupleDesc,
+    finished : bool,
+}
+
+impl Filter {
+    pub fn new(
+            condition : CondRef,
+            index_map : IndexMap,
+            tuple_desc : TupleDesc,
+            inner_iter : ExecIterRef) -> ExecIterRef {
+        Box::new(Filter{
+            condition : condition,
+            data_source : inner_iter,
+            index_map : index_map,
+            tuple_desc : tuple_desc,
+            finished : false,
+        })
+    }
+}
+
+impl ExecIter for Filter {
+    fn open(&mut self) {}
+    fn close(&mut self) { self.finished = true; }
+    fn explain(&self) -> String {
+        format!("filtered by condition: {:?}", self.condition)
+    }
+    fn get_next(&mut self) -> Option<TupleData> {
+        if self.finished {
+            return None;
+        }
+        assert_eq!(self.index_map.len(), self.tuple_desc.attr_desc.len());
+        while let Some(tuple_data) = self.data_source.get_next() {
+            assert_eq!(self.index_map.len(), tuple_data.len());
+            let mut ptr_map = PtrMap::new();
+            for (k, index) in &self.index_map {
+                ptr_map.insert(k.clone(), (
+                    tuple_data[*index],
+                    self.tuple_desc.attr_desc[*index].clone()
+                    ));
+            }
+            if eval_cond(&*self.condition, &ptr_map) {
+                return Some(tuple_data);
+            }
+        }
+        self.close();
+        None
+    }
 }

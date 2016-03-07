@@ -38,6 +38,7 @@ pub struct Attr {
 
 
 pub type TableRef = Rc<RefCell<Table>>;
+pub type IndexMap = HashMap<(String, String), usize>;
 
 #[derive(Debug, Clone, RustcDecodable, RustcEncodable)]
 pub struct Table {
@@ -48,6 +49,13 @@ pub struct Table {
 impl Table {
     pub fn gen_tuple_desc(&self) -> TupleDesc {
         TupleDesc::new(&self.attr_list)
+    }
+    pub fn gen_index_map(&self) -> IndexMap {
+        let mut index_map = IndexMap::new();
+        for (i, attr) in self.attr_list.iter().enumerate() {
+            index_map.insert((self.name.clone(), attr.name.clone()), i);
+        }
+        index_map
     }
 }
 

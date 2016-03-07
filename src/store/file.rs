@@ -13,7 +13,7 @@ use ::utils::config::Config;
 use ::utils::file::{path_join, ensure_dir_exist};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
-use super::table::{TableRef, AttrType};
+use super::table::{TableRef, AttrType, IndexMap};
 use super::tuple::{TupleDesc, TupleValue, TupleData};
 
 
@@ -370,6 +370,9 @@ impl TableFile {
         assert!(self.loaded_pages.get(&page_index).is_some());
         let page = self.loaded_pages.get(&page_index).unwrap();
         page.is_inuse(tuple_index)
+    }
+    pub fn gen_index_map(&self) -> IndexMap {
+        self.table.borrow().gen_index_map()
     }
 }
 

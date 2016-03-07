@@ -2,11 +2,13 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::ptr::read;
 use ::utils::pointer::read_string;
-use ::exec::query::FileScan;
 use ::store::table::{TableManagerRef, TableManager, Table, Attr, AttrType};
 use ::store::file::TableFileManager;
 use ::parser::common::{ValueExpr, ValueType};
+use ::parser::condition::ConditionExpr;
 use ::utils::config::Config;
+use ::exec::query::{FileScan, Filter};
+use ::exec::iter::ExecIterRef;
 
 
 fn gen_test_table() -> Table {
@@ -113,4 +115,54 @@ fn test_file_scan() {
     assert_float!(t[1], 123.0);
     assert_str!(t[2], "str");
     assert_pattern!(plan.get_next(), None);
+}
+
+fn gen_filter_plan(expr : &str) -> ExecIterRef {
+    let manager = gen_test_manager();
+    let table_name = "test_query_message".to_string();
+    let scan = FileScan::new(&table_name, &manager);
+    let table = gen_test_table();
+    let cond = Box::new(gen_parse_result!(ConditionExpr::parse, expr));
+    Filter::new(cond, table.gen_index_map(), table.gen_tuple_desc(), scan)
+}
+
+#[test]
+fn test_filter() {
+    {
+        let mut plan = gen_filter_plan("test_query_message.id = 1");
+        plan.open();
+        let tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 1);
+        assert_float!(tuple_data[1], 123.0);
+        assert_str!(tuple_data[2], "str");
+        assert_pattern!(plan.get_next(), None);
+    }
+    {
+        let mut plan = gen_filter_plan("test_query_message.score < 1000");
+        let mut tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 233);
+        assert_float!(tuple_data[1], 666.666);
+        assert_str!(tuple_data[2], "abcdef");
+        tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 1);
+        assert_float!(tuple_data[1], 123.0);
+        assert_str!(tuple_data[2], "str");
+        assert_pattern!(plan.get_next(), None);
+    }
+    {
+        let mut plan = gen_filter_plan("0 < 1000");
+        let mut tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 233);
+        assert_float!(tuple_data[1], 666.666);
+        assert_str!(tuple_data[2], "abcdef");
+        tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 777);
+        assert_float!(tuple_data[1], 12345.777);
+        assert_str!(tuple_data[2], "dyb");
+        tuple_data = plan.get_next().unwrap();
+        assert_int!(tuple_data[0], 1);
+        assert_float!(tuple_data[1], 123.0);
+        assert_str!(tuple_data[2], "str");
+        assert_pattern!(plan.get_next(), None);
+    }
 }
