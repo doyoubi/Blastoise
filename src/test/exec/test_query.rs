@@ -139,6 +139,7 @@ fn test_filter() {
     }
     {
         let mut plan = gen_filter_plan("test_query_message.score < 1000");
+        plan.open();
         let mut tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 233);
         assert_float!(tuple_data[1], 666.666);
@@ -151,6 +152,7 @@ fn test_filter() {
     }
     {
         let mut plan = gen_filter_plan("0 < 1000");
+        plan.open();
         let mut tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 233);
         assert_float!(tuple_data[1], 666.666);
