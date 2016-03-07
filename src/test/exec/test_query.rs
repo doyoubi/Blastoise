@@ -7,7 +7,7 @@ use ::store::file::TableFileManager;
 use ::parser::common::{ValueExpr, ValueType};
 use ::parser::condition::ConditionExpr;
 use ::utils::config::Config;
-use ::exec::query::{FileScan, Filter};
+use ::exec::query::{FileScan, Filter, Projection};
 use ::exec::iter::ExecIterRef;
 
 
@@ -167,4 +167,31 @@ fn test_filter() {
         assert_str!(tuple_data[2], "str");
         assert_pattern!(plan.get_next(), None);
     }
+}
+
+#[test]
+fn test_projection() {
+    let manager = gen_test_manager();
+    let table_name = "test_query_message".to_string();
+    let scan = FileScan::new(&table_name, &manager);
+    let table = gen_test_table();
+    let projs = vec![
+        ("test_query_message".to_string(), "id".to_string()),
+        ("test_query_message".to_string(), "content".to_string()),
+    ];
+    let mut plan = Projection::new(&table.gen_index_map(), projs, scan);
+    plan.open();
+    let mut tuple_data = plan.get_next().unwrap();
+    assert_eq!(tuple_data.len(), 2);
+    assert_int!(tuple_data[0], 233);
+    assert_str!(tuple_data[1], "abcdef");
+    tuple_data = plan.get_next().unwrap();
+    assert_eq!(tuple_data.len(), 2);
+    assert_int!(tuple_data[0], 777);
+    assert_str!(tuple_data[1], "dyb");
+    tuple_data = plan.get_next().unwrap();
+    assert_eq!(tuple_data.len(), 2);
+    assert_int!(tuple_data[0], 1);
+    assert_str!(tuple_data[1], "str");
+    assert_pattern!(plan.get_next(), None);
 }

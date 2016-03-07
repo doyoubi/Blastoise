@@ -115,3 +115,56 @@ impl ExecIter for Filter {
         None
     }
 }
+
+
+#[derive(Debug)]
+pub struct Projection {
+    data_source : ExecIterRef,
+    proj_attr_index : Vec<usize>,
+    proj_attr_list : Vec<(String, String)>,
+    finished : bool,
+}
+
+impl Projection {
+    pub fn new(
+            index_map : &IndexMap,
+            proj_attr_list : Vec<(String, String)>,
+            inner_iter : ExecIterRef) -> ExecIterRef {
+        let mut proj_attr_index = Vec::new();
+        for k in proj_attr_list.iter() {
+            proj_attr_index.push(index_map.get(&k).unwrap().clone());
+        }
+        Box::new(Projection{
+            data_source : inner_iter,
+            proj_attr_index : proj_attr_index,
+            proj_attr_list : proj_attr_list,
+            finished : false,
+        })
+    }
+}
+
+impl ExecIter for Projection {
+    fn open(&mut self) {}
+    fn close(&mut self) { self.finished = true; }
+    fn explain(&self) -> String {
+        format!("Projection: {:?}", self.proj_attr_list)
+    }
+    fn get_next(&mut self) -> Option<TupleData> {
+        if self.finished {
+            return None;
+        }
+        match self.data_source.get_next() {
+            Some(tuple_data) => {
+                let mut result = Vec::new();
+                for i in &self.proj_attr_index {
+                    result.push(tuple_data[*i]);
+                }
+                Some(result)
+            }
+            None => {
+                self.close();
+                None
+            }
+        }
+    }
+}
