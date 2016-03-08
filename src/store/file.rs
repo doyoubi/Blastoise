@@ -131,6 +131,7 @@ pub struct FilePage {
     pub bitmap : BitMap,
     pub tuple_data : DataPtr,
     pub mem_page : PageRef,
+    pub tuple_len : usize,
 }
 
 impl FilePage {
@@ -153,6 +154,7 @@ impl FilePage {
             },
             tuple_data : tuple_data,
             mem_page : mem_page,
+            tuple_len : tuple_len,
         }
     }
     pub fn init_empty_page(&mut self) {
@@ -257,6 +259,17 @@ impl FilePage {
     pub fn is_full(&self) -> bool {
         self.header.first_free_slot == self.bitmap.slot_sum
     }
+    pub fn is_in_page(&self, ptr : DataPtr) -> bool {
+        let page_start = self.mem_page.borrow().data;
+        let page_end = pointer_offset(page_start, get_page_size());
+        page_start <= ptr && ptr < page_end
+    }
+    pub fn delete(&mut self, ptr : DataPtr) {
+        let d = ptr as usize - self.tuple_data as usize;
+        let index = d / self.tuple_len;
+        assert!(self.is_inuse(index));
+        self.set_inuse(index, false);
+    }
 }
 
 
@@ -307,6 +320,14 @@ impl TableFile {
         // TODO: write page data to file
     }
     pub fn init_from_file(&mut self) {}
+    pub fn delete(&mut self, ptr : DataPtr) {
+        for (_, page) in &mut self.loaded_pages {
+            if page.is_in_page(ptr) {
+                page.delete(ptr);
+                return;
+            }
+        }
+    }
     pub fn insert(&mut self, value_list : &ValueList) {
         // must call add_page first if need_new_page() is true
         assert!(self.first_free_page < self.page_sum);
@@ -404,6 +425,10 @@ impl TableFileManager {
     pub fn from_files(_path : &str) -> TableFileManager {
         unimplemented!()
     }
+    pub fn delete(&mut self, table : &String, ptr : DataPtr) {
+        let file = self.get_file(table);
+        file.borrow_mut().delete(ptr);
+    }
     pub fn insert(&mut self, table : &String, value_list : &ValueList) {
         let file = self.get_file(table);
         let clone = file.clone();
@@ -465,11 +490,11 @@ impl TableFileManager {
         while page_index < page_sum {
             let next = file.borrow().next_tuple_index(page_index, tuple_index);
             match next {
-                 Some(i) => return Some(page_index * slot_sum + i),
-                 None => {
-                    page_index += 1;
-                    tuple_index = 0;
-                 }
+                Some(i) => return Some(page_index * slot_sum + i),
+                None => {
+                   page_index += 1;
+                   tuple_index = 0;
+                }
             }
         }
         None
@@ -495,6 +520,9 @@ impl TableFileManager {
     }
     pub fn get_unpinned_num(&self) -> usize {
         self.page_pool.get_unpinned_num()
+    }
+    pub fn get_file_fd(&self, name : &String) -> i32 {
+        self.files.get(name).unwrap().borrow().get_fd()
     }
 }
 

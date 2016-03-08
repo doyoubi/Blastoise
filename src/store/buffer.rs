@@ -17,10 +17,10 @@ pub trait CacheSaver : Debug {
 }
 
 
-#[derive(Debug)]
-struct PageKey {
-    fd : i32,
-    page_index : u32,
+#[derive(Debug, Eq, PartialEq)]
+pub struct PageKey {
+    pub fd : i32,
+    pub page_index : u32,
 }
 
 impl Hash for PageKey {

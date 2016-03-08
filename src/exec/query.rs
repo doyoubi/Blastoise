@@ -1,8 +1,10 @@
 use std::boxed::Box;
 use std::option::Option;
-use ::store::table::TableManagerRef;
+use std::collections::HashSet;
+use ::store::table::{TableManagerRef, IndexMap};
 use ::store::tuple::{TupleData, TupleDesc};
-use ::store::table::IndexMap;
+use ::store::file::TableFileRef;
+use ::store::buffer::PageKey;
 use ::parser::condition::CondRef;
 use super::iter::{ExecIter, ExecIterRef};
 use super::evaluate::PtrMap;
@@ -14,40 +16,90 @@ pub struct FileScan {
     table : String,
     table_manager : TableManagerRef,
     curr_position : usize,
-    slot_sum : usize,
-    page_sum : usize,
+    pinned_pages : HashSet<PageKey>,
+    file : TableFileRef,
     finished : bool,
 }
 
 impl FileScan {
     pub fn new(table : &String, table_manager : &TableManagerRef) -> ExecIterRef {
         let file = table_manager.borrow_mut().file_manager.get_file(&table);
-        let slot_sum = file.borrow().get_page_slot_sum();
-        let page_sum = file.borrow().page_sum;
         Box::new(FileScan{
             table : table.clone(),
             table_manager : table_manager.clone(),
             curr_position : 0,
-            slot_sum : slot_sum,
-            page_sum : page_sum,
+            pinned_pages : HashSet::new(),
+            file : file,
             finished : false,
         })
+    }
+    fn find_page_helper(&mut self, page_index : &mut usize,
+            tuple_index : &mut usize) -> Option<usize> {
+        let page_sum = self.file.borrow().page_sum;
+        let slot_sum = self.file.borrow().get_page_slot_sum();
+        while *page_index < page_sum {
+            let next = self.file.borrow().next_tuple_index(*page_index, *tuple_index);
+            match next {
+                Some(i) => return Some(*page_index * slot_sum + i),
+                None => {
+                    let fd = self.file.borrow().get_fd();
+                    self.pinned_pages.remove(&PageKey{ fd : fd, page_index : *page_index as u32 });
+                    self.table_manager.borrow_mut().file_manager.unpin_page(fd, *page_index as u32);
+                    *page_index += 1;
+                    *tuple_index = 0;
+                    if *page_index < page_sum {
+                        self.table_manager.borrow_mut().file_manager.ensure_page_loaded(
+                            &self.file, *page_index);
+                        self.table_manager.borrow_mut().file_manager.pin_page(fd, *page_index as u32);
+                        self.pinned_pages.insert(PageKey{ fd : fd, page_index : *page_index as u32 });
+                    }
+                }
+            }
+        }
+        None
     }
 }
 
 impl ExecIter for FileScan {
-    fn open(&mut self) {}
-    fn close(&mut self) { self.finished = true; }
+    fn open(&mut self) {
+        assert!(!self.finished);
+        let fd = self.file.borrow().get_fd();
+        self.pinned_pages.insert(PageKey{ fd : fd, page_index : 0 });
+        let mut table_manager = self.table_manager.borrow_mut();
+        table_manager.file_manager.ensure_page_loaded(&self.file, 0);
+        table_manager.file_manager.pin_page(fd, 0);
+    }
+    fn close(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        let mut table_manager = self.table_manager.borrow_mut();
+        for &PageKey{ fd, page_index } in self.pinned_pages.iter() {
+            table_manager.file_manager.unpin_page(fd, page_index);
+        }
+    }
     fn explain(&self) -> String {
-        format!("file scan, page sum: {:?}", self.page_sum)
+        format!("file scan, page sum: {:?}",
+            self.file.borrow().page_sum)
     }
     fn get_next(&mut self) -> Option<TupleData> {
         if self.finished {
             return None;
         }
-        let result =
-            self.table_manager.borrow_mut().file_manager.get_next_tuple_data(
-                &self.table, self.curr_position);
+        let file = self.file.clone();
+        let slot_sum = file.borrow().get_page_slot_sum();
+        let mut page_index = self.curr_position / slot_sum;
+        let mut tuple_index = self.curr_position % slot_sum;
+        let index = self.find_page_helper(&mut page_index, &mut tuple_index);
+        let result = match index {
+            Some(position) => Some((
+                self.table_manager.borrow_mut().file_manager.get_tuple_data(
+                    &self.table, position).unwrap(),
+                position
+            )),
+            None => None,
+        };
         match result {
             Some((tuple_data, new_position)) => {
                 self.curr_position = new_position + 1;
@@ -88,10 +140,15 @@ impl Filter {
 }
 
 impl ExecIter for Filter {
-    fn open(&mut self) {}
-    fn close(&mut self) { self.finished = true; }
+    fn open(&mut self) {
+        self.data_source.open();
+    }
+    fn close(&mut self) {
+        self.data_source.close();
+        self.finished = true;
+    }
     fn explain(&self) -> String {
-        format!("filtered by condition: {:?}", self.condition)
+        format!("filtered by condition: {:?} from source {:?}", self.condition, self.data_source)
     }
     fn get_next(&mut self) -> Option<TupleData> {
         if self.finished {
@@ -144,10 +201,15 @@ impl Projection {
 }
 
 impl ExecIter for Projection {
-    fn open(&mut self) {}
-    fn close(&mut self) { self.finished = true; }
+    fn open(&mut self) {
+        self.data_source.open();
+    }
+    fn close(&mut self) {
+        self.data_source.close();
+        self.finished = true;
+    }
     fn explain(&self) -> String {
-        format!("Projection: {:?}", self.proj_attr_list)
+        format!("Projection: {:?} from source {:?}", self.proj_attr_list, self.data_source)
     }
     fn get_next(&mut self) -> Option<TupleData> {
         if self.finished {

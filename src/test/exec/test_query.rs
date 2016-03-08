@@ -11,9 +11,9 @@ use ::exec::query::{FileScan, Filter, Projection};
 use ::exec::iter::ExecIterRef;
 
 
-fn gen_test_table() -> Table {
+pub fn gen_test_table(table_name : &String) -> Table {
     Table{
-        name : "test_query_message".to_string(),
+        name : table_name.clone(),
         attr_list : vec![
             Attr{
                 name : "id".to_string(),
@@ -37,8 +37,7 @@ fn gen_test_table() -> Table {
     }
 }
 
-fn insert_data(manager : &TableManagerRef) {
-    let table_name = "test_query_message".to_string();
+fn insert_data(table_name : &String, manager : &TableManagerRef) {
     let mut value_list = vec![
         ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
         ValueExpr{ value : "666.666".to_string(), value_type : ValueType::Float },
@@ -63,15 +62,14 @@ fn insert_data(manager : &TableManagerRef) {
     assert!(file.borrow().is_inuse(1, 0));
 }
 
-fn gen_test_manager() -> TableManagerRef {
+pub fn gen_test_manager(table_name : &String) -> TableManagerRef {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 5
         table_file_dir = "table_file""#.to_string());
     let manager = Rc::new(RefCell::new(TableManager::new(&config)));
-    let table = Rc::new(RefCell::new(gen_test_table()));
-    let table_name = "test_query_message".to_string();
+    let table = Rc::new(RefCell::new(gen_test_table(table_name)));
     manager.borrow_mut().file_manager.create_file(table_name.clone(), table);
-    insert_data(&manager);
+    insert_data(table_name, &manager);
     manager
 }
 
@@ -98,8 +96,8 @@ macro_rules! assert_str {
 
 #[test]
 fn test_file_scan() {
-    let manager = gen_test_manager();
     let table_name = "test_query_message".to_string();
+    let manager = gen_test_manager(&table_name);
     let mut plan = FileScan::new(&table_name, &manager);
     plan.open();
     let mut t = plan.get_next().unwrap();
@@ -118,10 +116,10 @@ fn test_file_scan() {
 }
 
 fn gen_filter_plan(expr : &str) -> ExecIterRef {
-    let manager = gen_test_manager();
     let table_name = "test_query_message".to_string();
+    let manager = gen_test_manager(&table_name);
     let scan = FileScan::new(&table_name, &manager);
-    let table = gen_test_table();
+    let table = gen_test_table(&table_name);
     let cond = Box::new(gen_parse_result!(ConditionExpr::parse, expr));
     Filter::new(cond, table.gen_index_map(), table.gen_tuple_desc(), scan)
 }
@@ -171,10 +169,10 @@ fn test_filter() {
 
 #[test]
 fn test_projection() {
-    let manager = gen_test_manager();
     let table_name = "test_query_message".to_string();
+    let manager = gen_test_manager(&table_name);
     let scan = FileScan::new(&table_name, &manager);
-    let table = gen_test_table();
+    let table = gen_test_table(&table_name);
     let projs = vec![
         ("test_query_message".to_string(), "id".to_string()),
         ("test_query_message".to_string(), "content".to_string()),
