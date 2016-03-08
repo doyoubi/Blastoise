@@ -1,5 +1,6 @@
 use std::ptr::read;
-use ::exec::change::{Insert, Delete};
+use std::collections::HashMap;
+use ::exec::change::{Insert, Delete, Update};
 use ::exec::query::{FileScan, Filter};
 use ::store::tuple::TupleValue;
 use ::store::table::{TableManager, Table, Attr, AttrType};
@@ -82,3 +83,72 @@ fn test_delete() {
         assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 1);
     }
 }
+
+#[test]
+fn test_update() {
+    {
+        // update all
+        let table_name = "test_change_message".to_string();
+        let manager = gen_test_manager(&table_name);
+        let table = gen_test_table(&table_name);
+        let mut set_values = HashMap::new();
+        set_values.insert(1, TupleValue::Float(233.666));
+        let mut update = Update::new(&table_name, table.gen_tuple_desc(), set_values,
+            FileScan::new(&table_name, &manager), &manager);
+        update.open();
+        assert_pattern!(update.get_next(), Some(..));
+        assert_pattern!(update.get_next(), Some(..));
+        assert_pattern!(update.get_next(), Some(..));
+        assert_pattern!(update.get_next(), None);
+        let mut scan = FileScan::new(&table_name, &manager);
+        scan.open();
+        let t1 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t2 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t3 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(scan.get_next(), None);
+        assert_eq!(unsafe{ read::<f32>(t1[1] as *const f32) }, 233.666);
+        assert_eq!(unsafe{ read::<f32>(t2[1] as *const f32) }, 233.666);
+        assert_eq!(unsafe{ read::<f32>(t3[1] as *const f32) }, 233.666);
+    }
+    {
+        // update with where clause
+        let table_name = "test_change_message".to_string();
+        let manager = gen_test_manager(&table_name);
+        let table = gen_test_table(&table_name);
+
+        let mut scan = FileScan::new(&table_name, &manager);
+        scan.open();
+        let t1 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t2 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t3 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(scan.get_next(), None);
+        assert_eq!(unsafe{ read::<f32>(t1[1] as *const f32) }, 666.666);
+        assert_eq!(unsafe{ read::<f32>(t2[1] as *const f32) }, 12345.777);
+        assert_eq!(unsafe{ read::<f32>(t3[1] as *const f32) }, 123.0);
+
+        let mut set_values = HashMap::new();
+        set_values.insert(1, TupleValue::Float(233.666));
+        let mut data_souce = FileScan::new(&table_name, &manager);
+        let cond = Box::new(gen_parse_result!(ConditionExpr::parse,
+            "test_change_message.id = 777"));
+        data_souce = Filter::new(cond, table.gen_index_map(), table.gen_tuple_desc(), data_souce);
+        let mut update = Update::new(&table_name, table.gen_tuple_desc(), set_values,
+            data_souce, &manager);
+        update.open();
+        let updated_tuple = extract!(update.get_next(), Some(tuple_data), tuple_data);
+        assert_eq!(unsafe{ read::<i32>(updated_tuple[0] as *const i32) }, 777);
+        assert_eq!(unsafe{ read::<f32>(updated_tuple[1] as *const f32) }, 233.666);
+        assert_pattern!(update.get_next(), None);
+
+        let mut scan = FileScan::new(&table_name, &manager);
+        scan.open();
+        let t1 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t2 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        let t3 = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(scan.get_next(), None);
+        assert_eq!(unsafe{ read::<f32>(t1[1] as *const f32) }, 666.666);
+        assert_eq!(unsafe{ read::<f32>(t2[1] as *const f32) }, 233.666);
+        assert_eq!(unsafe{ read::<f32>(t3[1] as *const f32) }, 123.0);
+    }
+}
+
