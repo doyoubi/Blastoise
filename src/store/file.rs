@@ -422,19 +422,28 @@ impl TableFileManager {
     }
     pub fn insert(&mut self, table : &String, value_list : &ValueList) {
         let file = self.get_file(table);
-        if file.borrow_mut().need_new_page() {
+        let need = file.borrow_mut().need_new_page();  // fight the borrow checker, RefCell
+        if need {
             let new_page_index = file.borrow().page_sum;
             self.ensure_page_loaded(&file, new_page_index);
             file.borrow_mut().loaded_pages.get_mut(&new_page_index).unwrap().init_empty_page();
+        } else {
+            let first_free_page = file.borrow().first_free_page;
+            let fd = file.borrow().get_fd();
+            self.pin_page(fd, first_free_page as u32);
         }
         file.borrow_mut().insert(value_list);
     }
     pub fn insert_in_page(&mut self, table : &String, page_index : usize, value_list : &ValueList) {
         // for test
         let file = self.get_file(table);
-        if !file.borrow().loaded_pages.get(&page_index).is_some() {
+        let page_exist = file.borrow().loaded_pages.get(&page_index).is_some();  // fight borrow checker
+        if !page_exist {
             self.ensure_page_loaded(&file, page_index);
             file.borrow_mut().loaded_pages.get_mut(&page_index).unwrap().init_empty_page();
+        } else {
+            let fd = file.borrow().get_fd();
+            self.pin_page(fd, page_index as u32);
         }
         file.borrow_mut().insert_in_page(page_index, value_list);
     }
@@ -491,7 +500,8 @@ impl TableFileManager {
         None
     }
     pub fn ensure_page_loaded(&mut self, file : &TableFileRef, page_index : usize) {
-        if !file.borrow().loaded_pages.get(&page_index).is_some() {
+        let page_exist = file.borrow().loaded_pages.get(&page_index).is_some();  // fight borrow checker
+        if !page_exist {
             let fd = file.borrow().get_fd();
             let mut ptr = null_mut();
             if let Some(page) = self.page_pool.prepare_page() {

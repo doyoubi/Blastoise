@@ -64,7 +64,7 @@ fn insert_data(table_name : &String, manager : &TableManagerRef) {
 
 pub fn gen_test_manager(table_name : &String) -> TableManagerRef {
     let config = Config::new(&r#"
-        max_memory_pool_page_num = 5
+        max_memory_pool_page_num = 2
         table_file_dir = "table_file""#.to_string());
     let manager = Rc::new(RefCell::new(TableManager::new(&config)));
     let table = Rc::new(RefCell::new(gen_test_table(table_name)));
