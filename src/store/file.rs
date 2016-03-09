@@ -365,17 +365,6 @@ impl TableFile {
             Some(next)
         }
     }
-    pub fn need_new_page(&mut self) -> bool {
-        while self.first_free_page < self.page_sum {
-            let page = &self.loaded_pages.get(&self.first_free_page).unwrap();
-            if page.is_full() {
-                self.first_free_page += 1
-            } else {
-                break;
-            }
-        }
-        self.first_free_page == self.page_sum
-    }
     pub fn add_page(&mut self, mem_page : PageRef) {
         let file_page = FilePage::new(mem_page, self.tuple_desc.tuple_len);
         let index = file_page.mem_page.borrow().page_index as usize;
@@ -422,30 +411,46 @@ impl TableFileManager {
     }
     pub fn insert(&mut self, table : &String, value_list : &ValueList) {
         let file = self.get_file(table);
-        let need = file.borrow_mut().need_new_page();  // fight the borrow checker, RefCell
-        if need {
+        let is_new_page = self.need_new_page(&file);  // fight the borrow checker, RefCell
+        if is_new_page {
             let new_page_index = file.borrow().page_sum;
             self.ensure_page_loaded(&file, new_page_index);
             file.borrow_mut().loaded_pages.get_mut(&new_page_index).unwrap().init_empty_page();
         } else {
             let first_free_page = file.borrow().first_free_page;
-            let fd = file.borrow().get_fd();
-            self.pin_page(fd, first_free_page as u32);
+            self.ensure_page_loaded(&file, first_free_page);
         }
         file.borrow_mut().insert(value_list);
     }
     pub fn insert_in_page(&mut self, table : &String, page_index : usize, value_list : &ValueList) {
         // for test
+        self.prepare_page(table, page_index);
         let file = self.get_file(table);
+        file.borrow_mut().insert_in_page(page_index, value_list);
+    }
+    pub fn prepare_page(&mut self, table : &String, page_index : usize) {
+        // for test, will init empty page
+        let file = self.get_file(&table);
         let page_exist = file.borrow().loaded_pages.get(&page_index).is_some();  // fight borrow checker
         if !page_exist {
             self.ensure_page_loaded(&file, page_index);
             file.borrow_mut().loaded_pages.get_mut(&page_index).unwrap().init_empty_page();
-        } else {
-            let fd = file.borrow().get_fd();
-            self.pin_page(fd, page_index as u32);
         }
-        file.borrow_mut().insert_in_page(page_index, value_list);
+    }
+    pub fn need_new_page(&mut self, file : &TableFileRef) -> bool {
+        let page_sum = file.borrow().page_sum;
+        let mut first_free_page;
+        loop {
+            first_free_page = file.borrow().first_free_page;
+            if first_free_page >= page_sum { break; }
+            self.ensure_page_loaded(&file, first_free_page);
+            if file.borrow().loaded_pages.get(&first_free_page).unwrap().is_full() {
+                file.borrow_mut().first_free_page += 1;
+            } else {
+                return false;
+            }
+        }
+        true
     }
     pub fn get_file(&mut self, table : &String) -> TableFileRef {
         self.files.get_mut(table).unwrap().clone()
@@ -459,7 +464,7 @@ impl TableFileManager {
             let f = file.borrow_mut();
             position / f.tuple_desc.tuple_len
         };
-        self.ensure_page_loaded(&file, page_index);
+        self.prepare_page(table, page_index);
         // declare v only to fight lifetime checker
         let v = file.borrow().get_tuple_value(position, attr_position);
         v

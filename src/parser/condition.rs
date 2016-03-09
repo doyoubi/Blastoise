@@ -356,3 +356,21 @@ fn to_cmp_op(token_type : TokenType) -> CmpOp {
         _ => panic!("unexpected token type: {:?}", token_type),
     }
 }
+
+pub fn gen_check_primary_key_condition_expr(
+        table : &String, pk_attr : &String, pk : i32) -> ConditionExpr {
+    ConditionExpr::CmpExpr{
+        lhs : CmpOperantExpr::Arith(ArithExpr::Attr(
+            AttributeExpr::TableAttr{
+                table : Some(table.clone()),
+                attr : pk_attr.clone(),
+            }
+        )),
+        rhs : CmpOperantExpr::Arith(ArithExpr::Value(ValueExpr{
+            value : pk.to_string(),
+            value_type : ValueType::Integer,
+        })),
+        op : CmpOp::EQ,
+    }
+}
+

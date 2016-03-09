@@ -9,6 +9,7 @@ use ::parser::{
     InsertStatement,
 };
 use super::iter::{ExecIter, ExecIterRef};
+use super::error::{ExecError, ExecErrorType};
 
 
 #[derive(Debug)]
@@ -44,6 +45,7 @@ impl ExecIter for Insert {
         self.close();
         None
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }
 
 
@@ -92,6 +94,7 @@ impl ExecIter for Delete {
         self.table_manager.borrow_mut().file_manager.delete(&self.table, tuple_data[0]);
         Some(tuple_data)  // only to indicate not finished, the data inside is only for tests
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }
 
 
@@ -161,4 +164,63 @@ impl ExecIter for Update {
         }
         Some(tuple_data)
     }
+    fn get_error(&self) -> Option<ExecError> { None }
+}
+
+#[derive(Debug)]
+pub struct CheckAndInsert {
+    filter_plan : ExecIterRef,
+    insert_plan : ExecIterRef,
+    error : Option<ExecError>,
+    finished : bool,
+}
+
+impl CheckAndInsert {
+    pub fn new(filter_plan : ExecIterRef, insert_plan : ExecIterRef) -> ExecIterRef {
+        Box::new(CheckAndInsert{
+            filter_plan : filter_plan,
+            insert_plan : insert_plan,
+            error : None,
+            finished : false,
+        })
+    }
+}
+
+impl ExecIter for CheckAndInsert {
+    fn open(&mut self) {
+        assert!(!self.finished);
+        self.filter_plan.open();
+        self.insert_plan.open();
+    }
+    fn close(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        self.filter_plan.close();
+        self.insert_plan.close();
+    }
+    fn explain(&self) -> String {
+        format!("check if primary key exist {:?}, then insert {:?}",
+            self.filter_plan, self.insert_plan)
+    }
+    fn get_next(&mut self) -> Option<TupleData> {
+        if self.finished {
+            return None;
+        }
+        match self.filter_plan.get_next() {
+            Some(..) => {
+                self.error = Some(ExecError{
+                    error_type : ExecErrorType::PrimaryKeyExist,
+                    error_msg : format!("primary key already exist"),
+                });
+                self.close();
+            }
+            None => {
+                self.insert_plan.get_next();
+            }
+        };
+        None
+    }
+    fn get_error(&self) -> Option<ExecError> { self.error.clone() }
 }

@@ -78,7 +78,7 @@ macro_rules! gen_plan_helper {
         let mut stmt = extract!(stmt, Ok(stmt), stmt);
         let table_set = gen_table_set(&stmt, &$manager);
         assert_pattern!(check_sem(&mut stmt, &table_set), Ok(()));
-        gen_plan(stmt, $manager, table_set).unwrap()
+        gen_plan(stmt, $manager, table_set)
     })
 }
 

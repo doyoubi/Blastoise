@@ -7,6 +7,7 @@ use ::store::file::TableFileRef;
 use ::store::buffer::PageKey;
 use ::parser::condition::CondRef;
 use super::iter::{ExecIter, ExecIterRef};
+use super::error::ExecError;
 use super::evaluate::PtrMap;
 use super::evaluate::eval_cond;
 
@@ -63,6 +64,11 @@ impl FileScan {
 impl ExecIter for FileScan {
     fn open(&mut self) {
         assert!(!self.finished);
+        let page_num = self.file.borrow().page_sum;
+        if page_num == 0 {
+            self.close();
+            return;
+        }
         let fd = self.file.borrow().get_fd();
         self.pinned_pages.insert(PageKey{ fd : fd, page_index : 0 });
         let mut table_manager = self.table_manager.borrow_mut();
@@ -111,6 +117,7 @@ impl ExecIter for FileScan {
             }
         }
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }
 
 
@@ -171,6 +178,7 @@ impl ExecIter for Filter {
         self.close();
         None
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }
 
 
@@ -229,4 +237,5 @@ impl ExecIter for Projection {
             }
         }
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }

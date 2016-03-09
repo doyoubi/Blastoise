@@ -1,9 +1,10 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExecErrorType {
+    PrimaryKeyExist,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExecError {
-    error_type : ExecErrorType,
-    error_msg : String,
+    pub error_type : ExecErrorType,
+    pub error_msg : String,
 }

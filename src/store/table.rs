@@ -57,6 +57,19 @@ impl Table {
         }
         index_map
     }
+    pub fn get_primary_key_attr(&self) -> Attr {
+        self.attr_list.iter().filter(|a| a.primary).next().unwrap().clone()
+    }
+    pub fn get_primary_key_index(&self) -> usize {
+        let mut index = 0;
+        for attr in self.attr_list.iter() {
+            if attr.primary {
+                return index;
+            }
+            index += 1;
+        }
+        index
+    }
 }
 
 

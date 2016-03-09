@@ -15,13 +15,18 @@ fn test_insert() {
         max_memory_pool_page_num = 2
         table_file_dir = "table_file""#.to_string());
     let manager = TableManager::make_ref(&config);
-    let table_name = "test_change_message".to_string();
+    let table_name = "test_insert_message".to_string();
     manager.borrow_mut().add_table(gen_test_table(&table_name));
     assert_pattern!(manager.borrow().get_table(&table_name), Some(..));
+
+    let file = manager.borrow_mut().file_manager.get_file(&table_name);
+    assert_eq!(file.borrow().loaded_pages.len(), 0);
+
     let mut plan = gen_plan_helper!(
-        "insert test_change_message values(233, 2.3333, \"i am doyoubi\")", &manager);
+        "insert test_insert_message values(233, 2.3333, \"i am doyoubi\")", &manager);
     plan.open();
     assert_pattern!(plan.get_next(), None);
+    assert_pattern!(plan.get_error(), None);
 
     assert_pattern!(manager.borrow_mut().get_tuple_value(&table_name, 0, 0), TupleValue::Int(233));
     assert_pattern!(manager.borrow_mut().get_tuple_value(&table_name, 0, 1), TupleValue::Float(2.3333));

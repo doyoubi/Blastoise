@@ -5,6 +5,7 @@ use ::store::tuple::TupleData;
 use ::parser::{CreateStatement, DropStatement};
 use ::parser;
 use super::iter::{ExecIter, ExecIterRef};
+use super::error::ExecError;
 
 
 #[derive(Debug)]
@@ -59,6 +60,7 @@ impl ExecIter for CreateTable {
         self.finished = true;
         None
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }
 
 
@@ -96,4 +98,5 @@ impl ExecIter for DropTable {
         self.finished = true;
         None
     }
+    fn get_error(&self) -> Option<ExecError> { None }
 }

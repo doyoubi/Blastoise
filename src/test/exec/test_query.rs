@@ -41,7 +41,7 @@ fn insert_data(table_name : &String, manager : &TableManagerRef) {
     let mut value_list = vec![
         ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
         ValueExpr{ value : "666.666".to_string(), value_type : ValueType::Float },
-        ValueExpr{ value : "abcdef".to_string(), value_type : ValueType::String },
+        ValueExpr{ value : "qweryu".to_string(), value_type : ValueType::String },
     ];
     manager.borrow_mut().insert(&table_name, &value_list);
     value_list[0].value = "777".to_string();
@@ -103,7 +103,7 @@ fn test_file_scan() {
     let mut t = plan.get_next().unwrap();
     assert_int!(t[0], 233);
     assert_float!(t[1], 666.666);
-    assert_str!(t[2], "abcdef");
+    assert_str!(t[2], "qweryu");
     t = plan.get_next().unwrap();
     assert_int!(t[0], 777);
     assert_float!(t[1], 12345.777);
@@ -141,7 +141,7 @@ fn test_filter() {
         let mut tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 233);
         assert_float!(tuple_data[1], 666.666);
-        assert_str!(tuple_data[2], "abcdef");
+        assert_str!(tuple_data[2], "qweryu");
         tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 1);
         assert_float!(tuple_data[1], 123.0);
@@ -154,7 +154,7 @@ fn test_filter() {
         let mut tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 233);
         assert_float!(tuple_data[1], 666.666);
-        assert_str!(tuple_data[2], "abcdef");
+        assert_str!(tuple_data[2], "qweryu");
         tuple_data = plan.get_next().unwrap();
         assert_int!(tuple_data[0], 777);
         assert_float!(tuple_data[1], 12345.777);
@@ -182,7 +182,7 @@ fn test_projection() {
     let mut tuple_data = plan.get_next().unwrap();
     assert_eq!(tuple_data.len(), 2);
     assert_int!(tuple_data[0], 233);
-    assert_str!(tuple_data[1], "abcdef");
+    assert_str!(tuple_data[1], "qweryu");
     tuple_data = plan.get_next().unwrap();
     assert_eq!(tuple_data.len(), 2);
     assert_int!(tuple_data[0], 777);
