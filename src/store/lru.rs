@@ -8,7 +8,6 @@ use std::fmt::Debug;
 
 pub trait CacheValue : Clone + Debug {
     type KeyType : Hash;
-    fn pop_callback(&mut self, new_value : &mut Self);
     fn is_pinned(&self) -> bool;
 }
 
@@ -111,25 +110,40 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         false
     }
 
-    pub fn put(&mut self, key : &ValueType::KeyType, mut value : ValueType) {
-        // return false when pool is full
+    pub fn prepare_page(&mut self) -> Option<ValueType> {
+        // return if the tail node need flush
+        let head = &mut self.head;
+        let mut tail = &mut self.tail;
+        let first_gotten_tail : NodePtr<ValueType> = *tail;
+        while let &mut Some(ref mut old) = &mut dre!(*tail).value {
+            if !old.is_pinned() {
+                return Some(old.clone());
+            }
+            let clone = tail.clone();
+            Self::node_to_head(head, tail, clone);
+            assert!(first_gotten_tail != tail.clone());  // all pages were pinned
+        }
+        None
+    }
+
+    pub fn remove_tail(&mut self) {
+        // call this function if returned value of prepare_page is not None
+        let tail = &mut self.tail;
+        let old = extract!(&mut dre!(*tail).value, &mut Some(ref mut old), old);
+        assert!(!old.is_pinned());
+        self.hash_map.remove(&dre!(*tail).key);
+        dre!(*tail).value = None;
+    }
+
+    pub fn put(&mut self, key : &ValueType::KeyType, value : ValueType) {
+        // before call this function, you should call prepare_page and remove_tail first
         let k = hash(key);
         let hash_map = &mut self.hash_map;
         assert!(!hash_map.get(&k).is_some());
         let head = &mut self.head;
         let mut tail = &mut self.tail;
 
-        let first_gotten_tail : NodePtr<ValueType> = *tail;
-        while let &mut Some(ref mut old) = &mut dre!(*tail).value {
-            if !old.is_pinned() {
-                old.pop_callback(&mut value);
-                hash_map.remove(&dre!(*tail).key);
-                break;
-            }
-            let clone = tail.clone();
-            Self::node_to_head(head, tail, clone);
-            assert!(first_gotten_tail != tail.clone());  // all pages were pinned
-        }
+        assert!(!dre!(*tail).value.is_some());
 
         let node = tail.clone();
         Self::node_to_head(head, tail, node);

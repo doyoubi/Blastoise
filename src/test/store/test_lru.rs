@@ -12,16 +12,12 @@ fn gen_count(n : u32) -> CountRef {
 
 #[derive(Debug, Clone)]
 struct MockValue {
-    pub callback_called_times : CountRef,
     pub key : u64,
     pub pinned : bool,
 }
 
 impl CacheValue for MockValue {
     type KeyType = u64;
-    fn pop_callback(&mut self, _new_value : &mut Self) {
-        self.callback_called_times.set((*self.callback_called_times).get() + 1);
-    }
     fn is_pinned(&self) -> bool {
         self.pinned
     }
@@ -30,23 +26,14 @@ impl CacheValue for MockValue {
 impl MockValue {
     fn new(k : u64) -> Self {
         MockValue{
-            callback_called_times : gen_count(0),  // not used
             key : k,
             pinned : false,
         }
     }
     fn new_pinned(k : u64) -> Self {
         MockValue{
-            callback_called_times : gen_count(0),  // not used
             key : k,
             pinned : true,
-        }
-    }
-    fn new_with_pop_count(k : u64, count : CountRef) -> Self {
-        MockValue{
-            callback_called_times : count,
-            key : k,
-            pinned : false,
         }
     }
 }
@@ -92,9 +79,11 @@ fn test_put() {
         c.put(&1, MockValue::new(1));
         assert_head!(c, 1);
         assert_eq!(c.get_load(), 1);
+        c.remove_tail();
         c.put(&2, MockValue::new(2));
         assert_head!(c, 2);
         assert_eq!(c.get_load(), 1);
+        c.remove_tail();
         c.put(&1, MockValue::new(1));
         assert_head!(c, 1);
         assert_eq!(c.get_load(), 1);
@@ -108,9 +97,11 @@ fn test_put() {
         c.put(&2, MockValue::new(2));
         assert_head!(c, 2);
         assert_eq!(c.get_load(), 2);
+        c.remove_tail();
         c.put(&3, MockValue::new(3));
         assert_head!(c, 3);
         assert_eq!(c.get_load(), 2);
+        c.remove_tail();
         c.put(&1, MockValue::new(1));
         assert_head!(c, 1);
         assert_eq!(c.get_load(), 2);
@@ -127,9 +118,11 @@ fn test_put() {
         c.put(&3, MockValue::new(3));
         assert_head!(c, 3);
         assert_eq!(c.get_load(), 3);
+        c.remove_tail();
         c.put(&4, MockValue::new(4));
         assert_head!(c, 4);
         assert_eq!(c.get_load(), 3);
+        c.remove_tail();
         c.put(&1, MockValue::new(1));
         assert_head!(c, 1);
         assert_eq!(c.get_load(), 3);
@@ -151,6 +144,7 @@ fn test_get() {
         assert_pattern!(c.get(&0), None);
         c.put(&1, MockValue::new(1));
         assert_get!(c, 1);
+        c.remove_tail();
         c.put(&2, MockValue::new(2));
         assert_get!(c, 2);
         assert_pattern!(c.get(&1), None);
@@ -183,37 +177,17 @@ fn test_get() {
     }
 }
 
-#[test]
-fn test_callback() {
-    {
-        let mut c = LruCache::new(1);
-        let count = gen_count(0);
-        c.put(&1, MockValue::new_with_pop_count(1, count.clone()));
-        c.put(&2, MockValue::new(2));
-        assert_eq!(count.get(), 1);
-        assert_head!(c, 2);
-    }
-    {
-        let mut c = LruCache::new(1);
-        let count = gen_count(0);
-        let mock = MockValue::new_with_pop_count(1, count.clone());
-        c.put(&1, mock);
-        c.put(&2, MockValue::new(2));
-        assert_eq!(count.get(), 1);
-        assert_head!(c, 2);
-    }
-}
 
 #[test]
 fn test_pinned() {
     let mut c = LruCache::new(3);
     c.put(&1, MockValue::new_pinned(1));
     c.put(&2, MockValue::new_pinned(2));
-    let count = gen_count(0);
-    c.put(&3, MockValue::new_with_pop_count(3, count.clone()));
+    c.put(&3, MockValue::new(3));
     assert_head!(c, 3);
+    assert_pattern!(c.prepare_page(), Some(..));
+    c.remove_tail();
     c.put(&4, MockValue::new(4));
-    assert_eq!(count.get(), 1);
     assert_pattern!(c.get(&4), Some(..));
     assert_pattern!(c.get(&1), Some(..));
     assert_pattern!(c.get(&2), Some(..));
@@ -227,5 +201,7 @@ fn test_page_pool_full() {
     c.put(&1, MockValue::new_pinned(1));
     c.put(&2, MockValue::new_pinned(2));
     c.put(&3, MockValue::new_pinned(3));
-    c.put(&4, MockValue::new_pinned(4));
+    assert_pattern!(c.prepare_page(), Some(..));  // panic here
+    // c.remove_tail();
+    // c.put(&4, MockValue::new_pinned(4));
 }

@@ -1,7 +1,6 @@
 use std::ptr::null_mut;
 use std::hash::{Hash, Hasher};
 use std::option::Option;
-use std::fmt::Debug;
 use std::rc::Rc;
 use std::cell::RefCell;
 use libc::{c_void, free};
@@ -10,11 +9,6 @@ use ::utils::libwrapper::alloc_page;
 
 
 pub type DataPtr = *mut c_void;
-pub type CacheSaverRef = Rc<RefCell<CacheSaver>>;
-
-pub trait CacheSaver : Debug {
-    fn save(&mut self, fd : i32, page_index : u32, data : DataPtr);
-}
 
 
 #[derive(Debug, Eq, PartialEq)]
@@ -41,34 +35,23 @@ pub struct Page {
     pub page_index : u32,
     pub data : DataPtr,
     pub dirty : bool,
-    pub saver : CacheSaverRef,
     pub pinned : bool,
 }
 
 impl CacheValue for PageRef {
     type KeyType = PageKey;
-    fn pop_callback(&mut self, new_value : &mut PageRef) {
-        assert!(!self.is_pinned());
-        let mut old_page = self.borrow_mut();
-        assert!(!old_page.data.is_null());
-        let mut new_page = new_value.borrow_mut();
-        old_page.save();
-        new_page.data = old_page.data;  // place here to get around the crash problem
-        old_page.data = null_mut();
-    }
     fn is_pinned(&self) -> bool {
         self.borrow().pinned
     }
 }
 
 impl Page {
-    pub fn new(fd : i32, page_index : u32, saver : CacheSaverRef) -> Page {
+    pub fn new(fd : i32, page_index : u32) -> Page {
         Page{
             fd : fd,
             page_index : page_index,
             data : null_mut(),
             dirty : false,
-            saver : saver,
             pinned : false,
         }
     }
@@ -78,9 +61,6 @@ impl Page {
     }
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
-    }
-    pub fn save(&mut self) {
-        self.saver.borrow_mut().save(self.fd, self.page_index, self.data);
     }
 }
 
@@ -112,9 +92,16 @@ impl PagePool {
         let key = PageKey{ fd : fd, page_index : page_index };
         self.cache.get(&key)
     }
-    pub fn put_page(&mut self, fd : i32, page_index : u32, saver : CacheSaverRef) {
+    pub fn prepare_page(&mut self) -> Option<PageRef> {
+        self.cache.prepare_page()
+    }
+    pub fn remove_tail(&mut self) {
+        self.cache.remove_tail();
+    }
+    pub fn put_page(&mut self, fd : i32, page_index : u32, ptr : DataPtr) {
         let key = PageKey{ fd : fd, page_index : page_index };
-        let mut new_page = Page::new(fd, page_index, saver);
+        let mut new_page = Page::new(fd, page_index);
+        new_page.data = ptr;
         if self.cache.get_load() < self.cache.capacity() {
             new_page.alloc();
         }

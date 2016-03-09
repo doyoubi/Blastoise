@@ -2,46 +2,16 @@ use std::boxed::Box;
 use std::option::Option::{Some, None};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::ptr::{write, read};
-use ::store::buffer::{CacheSaver, Page, PagePool, DataPtr};
+use std::ptr::{write, read, null_mut};
+use ::store::buffer::{Page, PagePool, DataPtr};
 
-
-#[derive(Debug, Copy, Clone)]
-pub struct MockCacheSaver {
-    pub fd : i32,
-    pub page_index : u32,
-    pub saved : bool,
-}
-
-impl CacheSaver for MockCacheSaver {
-    fn save(&mut self, fd : i32, page_index : u32, data : DataPtr) {
-        let mut mock = self;
-        assert_eq!(mock.saved, false);
-        assert_eq!(mock.fd, fd);
-        assert_eq!(mock.page_index, page_index);
-        assert!(!data.is_null());
-        let n = unsafe{read::<i32>(data as *const i32)};
-        assert_eq!(666, n);
-        mock.saved = true;
-    }
-}
 
 #[test]
 fn test_page_pool() {
     let mut pool = PagePool::new(1);
     let (mut fd, mut page_index) = (11, 12);
-    let s1 = Rc::new(RefCell::new(MockCacheSaver{
-        fd : fd,
-        page_index: page_index,
-        saved : false,
-    }));
-    let s2 = Rc::new(RefCell::new(MockCacheSaver{
-        fd : 21,
-        page_index: 22,
-        saved : false,
-    }));
     assert_pattern!(pool.get_page(fd, page_index), None);
-    pool.put_page(fd, page_index, s1.clone());
+    pool.put_page(fd, page_index, null_mut());
     {
         let page1 = pool.get_page(fd, page_index).unwrap();
         let p1 = page1.borrow();
@@ -50,8 +20,8 @@ fn test_page_pool() {
         assert!(!p1.data.is_null());
         unsafe{write::<i32>(p1.data as *mut i32, 666);}
     }
-    pool.put_page(21, 22, s2.clone());
-    assert!(s1.borrow().saved);
+    pool.remove_tail();
+    pool.put_page(21, 22, null_mut());
     fd = 21;
     page_index = 22;
     {
@@ -63,4 +33,12 @@ fn test_page_pool() {
         let n = unsafe{read::<i32>(p2.data as *const i32)};
         assert_eq!(n, 666);
     }
+}
+
+#[test]
+#[should_panic]
+fn test_crash() {
+    let mut pool = PagePool::new(1);
+    pool.put_page(11, 12, null_mut());
+    pool.put_page(11, 13, null_mut());
 }

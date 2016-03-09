@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::mem::size_of;
-use std::ptr::{write, read, write_bytes};
+use std::ptr::{write, read, write_bytes, null_mut};
 use std::fs::{OpenOptions, File};
 use std::os::unix::io::AsRawFd;
 use std::slice::from_raw_parts;
@@ -12,7 +12,7 @@ use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::utils::config::Config;
 use ::utils::file::{path_join, ensure_dir_exist};
 use ::parser::common::{ValueList, ValueType};
-use super::buffer::{DataPtr, PageRef, PagePool, CacheSaver};
+use super::buffer::{DataPtr, PageRef, PagePool};
 use super::table::{TableRef, AttrType, IndexMap};
 use super::tuple::{TupleDesc, TupleValue, TupleData};
 
@@ -330,8 +330,13 @@ impl TableFile {
     }
     pub fn insert(&mut self, value_list : &ValueList) {
         // must call add_page first if need_new_page() is true
-        assert!(self.first_free_page < self.page_sum);
-        let file_page = self.loaded_pages.get_mut(&self.first_free_page).unwrap();
+        let first_free_page = self.first_free_page;
+        self.insert_in_page(first_free_page, value_list)
+    }
+    pub fn insert_in_page(&mut self, page_index : usize, value_list : &ValueList) {
+        // for test
+        assert!(page_index < self.page_sum);
+        let file_page = self.loaded_pages.get_mut(&page_index).unwrap();
         assert!(!file_page.is_full());
         file_page.insert(value_list, &self.tuple_desc)
     }
@@ -377,13 +382,6 @@ impl TableFile {
         self.loaded_pages.insert(index, file_page);
         self.page_sum += 1;
     }
-    pub fn insert_in_page(&mut self, page_index : usize, value_list : &ValueList) {
-        // for test
-        assert!(page_index < self.page_sum);
-        let file_page = self.loaded_pages.get_mut(&page_index).unwrap();
-        assert!(!file_page.is_full());
-        file_page.insert(value_list, &self.tuple_desc)
-    }
     pub fn get_fd(&self) -> i32 {
         self.file.as_raw_fd()
     }
@@ -394,13 +392,6 @@ impl TableFile {
     }
     pub fn gen_index_map(&self) -> IndexMap {
         self.table.borrow().gen_index_map()
-    }
-}
-
-impl CacheSaver for TableFile {
-    fn save(&mut self, _fd : i32, page_index : u32, _data : DataPtr) {
-        self.save_page(page_index as usize);
-        self.loaded_pages.remove(&(page_index as usize));
     }
 }
 
@@ -431,20 +422,20 @@ impl TableFileManager {
     }
     pub fn insert(&mut self, table : &String, value_list : &ValueList) {
         let file = self.get_file(table);
-        let clone = file.clone();
-        let mut f = file.borrow_mut();
-        if f.need_new_page() {
-            let new_page_index = f.page_sum;
-            let fd = f.get_fd();
-            self.page_pool.put_page(fd, new_page_index as u32, clone);
-            f.add_page(self.page_pool.get_page(fd, new_page_index as u32).unwrap());
+        if file.borrow_mut().need_new_page() {
+            let new_page_index = file.borrow().page_sum;
+            self.ensure_page_loaded(&file, new_page_index);
+            file.borrow_mut().loaded_pages.get_mut(&new_page_index).unwrap().init_empty_page();
         }
-        f.insert(value_list);
+        file.borrow_mut().insert(value_list);
     }
     pub fn insert_in_page(&mut self, table : &String, page_index : usize, value_list : &ValueList) {
         // for test
         let file = self.get_file(table);
-        self.ensure_page_loaded(&file, page_index);
+        if !file.borrow().loaded_pages.get(&page_index).is_some() {
+            self.ensure_page_loaded(&file, page_index);
+            file.borrow_mut().loaded_pages.get_mut(&page_index).unwrap().init_empty_page();
+        }
         file.borrow_mut().insert_in_page(page_index, value_list);
     }
     pub fn get_file(&mut self, table : &String) -> TableFileRef {
@@ -501,11 +492,17 @@ impl TableFileManager {
     }
     pub fn ensure_page_loaded(&mut self, file : &TableFileRef, page_index : usize) {
         if !file.borrow().loaded_pages.get(&page_index).is_some() {
-            let clone = file.clone();
-            let mut file = file.borrow_mut();
-            let fd = file.get_fd();
-            self.page_pool.put_page(fd, page_index as u32, clone);
-            file.add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
+            let fd = file.borrow().get_fd();
+            let mut ptr = null_mut();
+            if let Some(page) = self.page_pool.prepare_page() {
+                let page_index = page.borrow().page_index;
+                ptr = page.borrow().data;
+                file.borrow_mut().save_page(page_index as usize);
+                file.borrow_mut().loaded_pages.remove(&(page_index as usize));
+                self.page_pool.remove_tail();
+            }
+            self.page_pool.put_page(fd, page_index as u32, ptr);
+            file.borrow_mut().add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
         }
     }
     pub fn create_file(&mut self, name : String, table : TableRef) {

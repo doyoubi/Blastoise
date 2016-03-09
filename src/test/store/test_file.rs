@@ -9,7 +9,6 @@ use ::store::file::{TableFile, FilePage, BitMap, PageHeader, TableFileManager};
 use ::store::buffer::{DataPtr, Page};
 use ::store::table::{Table, Attr, AttrType};
 use ::parser::common::{ValueExpr, ValueType};
-use ::test::store::test_buffer::MockCacheSaver;
 use ::store::tuple::TupleValue;
 
 
@@ -123,15 +122,10 @@ fn gen_test_table() -> Table {
 
 #[test]
 fn test_file_page_insert() {
-    let saver = Rc::new(RefCell::new(MockCacheSaver{
-        fd : 0,  // not used
-        page_index: 0,  // not used
-        saved : false,  // not used
-    }));
     let table = gen_test_table();
     let tuple_desc = table.gen_tuple_desc();
     assert_eq!(tuple_desc.tuple_len, 16);
-    let mut mem_page = Page::new(1, 2, saver);
+    let mut mem_page = Page::new(1, 2);
     mem_page.alloc();
     let page = Rc::new(RefCell::new(mem_page));
     let mut file_page = FilePage::new(page, tuple_desc.tuple_len);
