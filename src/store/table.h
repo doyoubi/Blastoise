@@ -1,7 +1,0 @@
-class Table
-{};
-
-
-class Record
-{};
-
