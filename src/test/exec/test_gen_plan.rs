@@ -88,3 +88,42 @@ fn test_gen_delete_plan() {
         assert_eq!(unsafe{ read::<i32>(t3[0] as *const i32) }, 1);
     }
 }
+
+#[test]
+fn test_query() {
+    {
+        let table_name = "test_gen_plan_message".to_string();
+        let manager = gen_test_manager(&table_name);
+        let mut query = gen_plan_helper!(
+            "select * from test_gen_plan_message", &manager);
+        query.open();
+        let t1 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        let t2 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        let t3 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(query.get_next(), None);
+        assert_eq!(unsafe{ read::<i32>(t1[0] as *const i32) }, 233);
+        assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 777);
+        assert_eq!(unsafe{ read::<i32>(t3[0] as *const i32) }, 1);
+    }
+    {
+        let table_name = "test_gen_plan_message".to_string();
+        let manager = gen_test_manager(&table_name);
+        let mut query = gen_plan_helper!(
+            "select * from test_gen_plan_message where id = 777", &manager);
+        query.open();
+        let t2 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(query.get_next(), None);
+        assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 777);
+    }
+    {
+        let table_name = "test_gen_plan_message".to_string();
+        let manager = gen_test_manager(&table_name);
+        let mut query = gen_plan_helper!(
+            "select score, content from test_gen_plan_message where id = 777", &manager);
+        query.open();
+        let t2 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(query.get_next(), None);
+        assert_eq!(unsafe{ read::<f32>(t2[0] as *const f32) }, 12345.777);
+        assert_eq!(unsafe{ read_string(t2[1], 16) }, "dyb");
+    }
+}

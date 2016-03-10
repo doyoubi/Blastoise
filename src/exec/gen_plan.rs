@@ -2,7 +2,8 @@ use std::vec::Vec;
 use std::boxed::Box;
 use std::collections::HashMap;
 use ::parser::common::{Statement, ValueExpr, ValueType};
-use ::parser::select::Relation;
+use ::parser::select::{Relation, SelectExpr};
+use ::parser::attribute::AttributeExpr;
 use ::parser::condition::gen_check_primary_key_condition_expr;
 use ::parser::{
     SelectStatement,
@@ -17,7 +18,7 @@ use ::store::tuple::TupleValue;
 use super::iter::ExecIterRef;
 use super::create_drop::{CreateTable, DropTable};
 use super::change::{Insert, CheckAndInsert, Update, Delete};
-use super::query::{FileScan, Filter};
+use super::query::{FileScan, Filter, Projection};
 
 
 pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set : TableSet)
@@ -28,7 +29,7 @@ pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set :
         Statement::Insert(insert) => gen_insert_plan(insert, table_manager),
         Statement::Update(update) => gen_update_plan(update, table_manager),
         Statement::Delete(delete) => gen_delete_plan(delete, table_manager),
-        _ => unimplemented!(),
+        Statement::Select(select) => gen_select_plan(select, table_manager),
     }
 }
 
@@ -38,6 +39,31 @@ pub fn gen_create_plan(stmt : CreateStatement, table_manager : &TableManagerRef)
 
 pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> ExecIterRef {
     DropTable::new(stmt, table_manager)
+}
+
+pub fn gen_select_plan(stmt : SelectStatement, table_manager : &TableManagerRef) -> ExecIterRef {
+    // join and sub query not supported now
+    let table_name = extract!(&stmt.relation_list[0], &Relation::TableName(ref name), name.clone());
+    let table = table_manager.borrow().get_table(&table_name).unwrap();
+    let mut query = FileScan::new(&table_name, table_manager);
+    if let Some(cond) = stmt.where_condition {
+        query = Filter::new(Box::new(cond),
+            table.borrow().gen_index_map(),
+            table.borrow().gen_tuple_desc(), query);
+    }
+    let mut proj_attr_index = Vec::new();
+    let mut proj_attr_list = Vec::new();
+    let index_map = table.borrow().gen_index_map();
+    if let SelectExpr::AttrList(attr_list) = stmt.select_expr {
+        for attr in attr_list.iter() {
+            let table_and_attr = extract!(attr, &AttributeExpr::TableAttr{ref table, ref attr},
+                (table.clone().unwrap(), attr.clone()));
+            proj_attr_index.push(index_map.get(&table_and_attr).unwrap().clone());
+            proj_attr_list.push(table_and_attr);
+        }
+        query = Projection::new(&index_map, proj_attr_list, query);
+    }
+    query
 }
 
 pub fn gen_delete_plan(stmt : DeleteStatement, table_manager : &TableManagerRef) -> ExecIterRef {
