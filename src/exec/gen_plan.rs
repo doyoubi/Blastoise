@@ -8,7 +8,7 @@ use ::parser::{
     SelectStatement,
     InsertStatement,
     UpdateStatement,
-    // DeleteStatement,
+    DeleteStatement,
     CreateStatement,
     DropStatement,
 };
@@ -16,7 +16,7 @@ use ::store::table::{TableSet, TableManagerRef};
 use ::store::tuple::TupleValue; 
 use super::iter::ExecIterRef;
 use super::create_drop::{CreateTable, DropTable};
-use super::change::{Insert, CheckAndInsert, Update};
+use super::change::{Insert, CheckAndInsert, Update, Delete};
 use super::query::{FileScan, Filter};
 
 
@@ -27,6 +27,7 @@ pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set :
         Statement::Drop(drop) => gen_drop_plan(drop, table_manager),
         Statement::Insert(insert) => gen_insert_plan(insert, table_manager),
         Statement::Update(update) => gen_update_plan(update, table_manager),
+        Statement::Delete(delete) => gen_delete_plan(delete, table_manager),
         _ => unimplemented!(),
     }
 }
@@ -37,6 +38,17 @@ pub fn gen_create_plan(stmt : CreateStatement, table_manager : &TableManagerRef)
 
 pub fn gen_drop_plan(stmt : DropStatement, table_manager : &TableManagerRef) -> ExecIterRef {
     DropTable::new(stmt, table_manager)
+}
+
+pub fn gen_delete_plan(stmt : DeleteStatement, table_manager : &TableManagerRef) -> ExecIterRef {
+    let table = table_manager.borrow().get_table(&stmt.table).unwrap();
+    let mut data_source = FileScan::new(&stmt.table, table_manager);
+    if let Some(cond) = stmt.where_condition {
+        data_source = Filter::new(Box::new(cond),
+            table.borrow().gen_index_map(),
+            table.borrow().gen_tuple_desc(), data_source);
+    }
+    Delete::new(&stmt.table, data_source, table_manager)
 }
 
 pub fn gen_insert_plan(stmt : InsertStatement, table_manager : &TableManagerRef) -> ExecIterRef {
