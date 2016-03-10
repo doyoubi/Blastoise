@@ -67,8 +67,7 @@ pub fn gen_test_manager(table_name : &String) -> TableManagerRef {
         max_memory_pool_page_num = 2
         table_file_dir = "table_file""#.to_string());
     let manager = Rc::new(RefCell::new(TableManager::new(&config)));
-    let table = Rc::new(RefCell::new(gen_test_table(table_name)));
-    manager.borrow_mut().file_manager.create_file(table_name.clone(), table);
+    manager.borrow_mut().add_table(gen_test_table(table_name));
     insert_data(table_name, &manager);
     manager
 }

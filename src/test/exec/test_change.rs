@@ -2,9 +2,11 @@ use std::ptr::read;
 use std::collections::HashMap;
 use ::exec::change::{Insert, Delete, Update};
 use ::exec::query::{FileScan, Filter};
+use ::exec::error::ExecErrorType;
 use ::store::tuple::TupleValue;
 use ::store::table::{TableManager, Table, Attr, AttrType};
 use ::utils::config::Config;
+use ::utils::pointer::read_string;
 use ::parser::condition::ConditionExpr;
 use super::test_query::{gen_test_manager, gen_test_table};
 
@@ -32,6 +34,64 @@ fn test_insert() {
     assert_pattern!(manager.borrow_mut().get_tuple_value(&table_name, 0, 1), TupleValue::Float(2.3333));
     assert_eq!(extract!(
         manager.borrow_mut().get_tuple_value(&table_name, 0, 2), TupleValue::Char(s), s), "i am doyoubi");
+}
+
+#[test]
+fn test_duplicate_primary_key() {
+    let table_name = "test_change_message".to_string();
+    let manager = gen_test_manager(&table_name);
+
+    let mut scan = FileScan::new(&table_name, &manager);
+    scan.open();
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), None);
+
+    let mut plan = gen_plan_helper!(
+        "insert test_change_message values(233, 2.3333, \"i am doyoubi\")", &manager);
+    plan.open();
+    assert_pattern!(plan.get_next(), None);
+    let err = plan.get_error().unwrap();
+    assert_eq!(err.error_type, ExecErrorType::PrimaryKeyExist);
+
+    let mut scan = FileScan::new(&table_name, &manager);
+    scan.open();
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), None);
+}
+
+#[test]
+fn test_insert_without_creating_new_page() {
+    let table_name = "test_change_message".to_string();
+    let manager = gen_test_manager(&table_name);
+
+    let mut scan = FileScan::new(&table_name, &manager);
+    scan.open();
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), None);
+
+    let mut plan = gen_plan_helper!(
+        "insert test_change_message values(1234, 2.3333, \"i am doyoubi\")", &manager);
+    plan.open();
+    assert_pattern!(plan.get_next(), None);
+    assert_pattern!(plan.get_error(), None);
+
+    let mut scan = FileScan::new(&table_name, &manager);
+    scan.open();
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), Some(..));
+    let tuple_data = extract!(scan.get_next(), Some(tuple_data), tuple_data);
+    assert_pattern!(scan.get_next(), Some(..));
+    assert_pattern!(scan.get_next(), None);
+
+    assert_eq!(unsafe{read::<i32>(tuple_data[0] as *const i32)}, 1234);
+    assert_eq!(unsafe{read::<f32>(tuple_data[1] as *const f32)}, 2.3333);
+    assert_eq!(unsafe{read_string(tuple_data[2], 16)}, "i am doyoubi");
 }
 
 #[test]
