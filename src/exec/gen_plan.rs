@@ -1,20 +1,22 @@
 use std::vec::Vec;
 use std::boxed::Box;
-use ::parser::common::Statement;
+use std::collections::HashMap;
+use ::parser::common::{Statement, ValueExpr, ValueType};
 use ::parser::select::Relation;
 use ::parser::condition::gen_check_primary_key_condition_expr;
 use ::parser::{
     SelectStatement,
     InsertStatement,
-    // UpdateStatement,
+    UpdateStatement,
     // DeleteStatement,
     CreateStatement,
     DropStatement,
 };
 use ::store::table::{TableSet, TableManagerRef};
+use ::store::tuple::TupleValue; 
 use super::iter::ExecIterRef;
 use super::create_drop::{CreateTable, DropTable};
-use super::change::{Insert, CheckAndInsert};
+use super::change::{Insert, CheckAndInsert, Update};
 use super::query::{FileScan, Filter};
 
 
@@ -24,6 +26,7 @@ pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set :
         Statement::Create(create) => gen_create_plan(create, table_manager),
         Statement::Drop(drop) => gen_drop_plan(drop, table_manager),
         Statement::Insert(insert) => gen_insert_plan(insert, table_manager),
+        Statement::Update(update) => gen_update_plan(update, table_manager),
         _ => unimplemented!(),
     }
 }
@@ -42,6 +45,36 @@ pub fn gen_insert_plan(stmt : InsertStatement, table_manager : &TableManagerRef)
     let pk = stmt.value_list[pk_index].value.parse::<i32>().unwrap();
     let check = gen_check_primary_key_exist_plan(pk, &stmt.table, table_manager);
     CheckAndInsert::new(check, Insert::new(stmt, table_manager))
+}
+
+pub fn gen_update_plan(stmt : UpdateStatement, table_manager : &TableManagerRef) -> ExecIterRef {
+    let table = table_manager.borrow().get_table(&stmt.table).unwrap();
+    let mut data_source = FileScan::new(&stmt.table, table_manager);
+    if let Some(cond) = stmt.where_condition {
+        data_source = Filter::new(Box::new(cond),
+            table.borrow().gen_index_map(),
+            table.borrow().gen_tuple_desc(), data_source);
+    }
+    let mut set_values = HashMap::new();
+    let index_map = table.borrow().gen_index_map();
+    for assign in stmt.set_list.iter() {
+        let attr = &assign.attr;
+        let value = &assign.value;
+        let index = index_map.get(&(stmt.table.clone(), attr.clone())).unwrap();
+        let tuple_value = value_expr_to_tuple_value(value);
+        set_values.insert(*index, tuple_value);
+    }
+    let tuple_desc = table.borrow().gen_tuple_desc();
+    Update::new(&stmt.table, tuple_desc, set_values, data_source, table_manager)
+}
+
+pub fn value_expr_to_tuple_value(expr : &ValueExpr) -> TupleValue {
+    match expr.value_type {
+        ValueType::Integer => TupleValue::Int(expr.value.parse::<i32>().unwrap()),
+        ValueType::Float => TupleValue::Float(expr.value.parse::<f32>().unwrap()),
+        ValueType::String => TupleValue::Char(expr.value.clone()),
+        ValueType::Null => unimplemented!(),
+    }
 }
 
 pub fn gen_check_primary_key_exist_plan(

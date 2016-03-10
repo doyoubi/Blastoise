@@ -10,3 +10,6 @@ mod test_query;
 #[allow(dead_code)]
 #[allow(unused_imports)]
 mod test_evaluate;
+#[allow(dead_code)]
+#[allow(unused_imports)]
+mod test_gen_plan;
