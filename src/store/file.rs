@@ -32,6 +32,7 @@ impl PageHeader {
             write::<u32>(next_data_ptr as *mut u32, self.first_free_slot as u32);
         }
     }
+
     pub fn init_from_page_data(&mut self) {
         unsafe{
             let slot_sum = read::<u32>(self.data as *const u32) as usize;
@@ -412,7 +413,7 @@ impl TableFile {
 #[derive(Debug)]
 pub struct TableFileManager {
     files : HashMap<String, TableFileRef>,  // key is table name
-    page_pool : PagePool,
+    pub page_pool : PagePool,
     table_file_dir : String,
 }
 
@@ -551,20 +552,37 @@ impl TableFileManager {
             let mut ptr = null_mut();
             if let Some(page) = self.page_pool.prepare_page() {
                 // save tail page
-                let page_index = page.borrow().page_index;
+                let old_page_index = page.borrow().page_index;
                 ptr = page.borrow().data;
-                file.borrow_mut().save_page(page_index as usize);
-                file.borrow_mut().loaded_pages.remove(&(page_index as usize));
+                let old_fd = page.borrow().fd;
+                let old_file = self.get_file_by_fd(old_fd);
+                old_file.borrow_mut().save_page(old_page_index as usize);
+                page.borrow_mut().data = null_mut();
+                old_file.borrow_mut().loaded_pages.remove(&(old_page_index as usize));
                 self.page_pool.remove_tail();
             }
             self.page_pool.put_page(fd, page_index as u32, ptr);
+            {
+                let page = self.page_pool.get_page(fd, page_index as u32).unwrap();
+                ptr = page.borrow().data.clone();
+            }
             if page_index < page_sum {
                 file.borrow_mut().read_page_from_file(ptr, page_index);
+                file.borrow_mut().add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
+                file.borrow_mut().loaded_pages.get_mut(&page_index).unwrap().init_from_page_data();
             } else {
                 file.borrow_mut().page_sum += 1;
+                file.borrow_mut().add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
             }
-            file.borrow_mut().add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
         }
+    }
+    pub fn get_file_by_fd(&self, fd : i32) -> TableFileRef {
+        for (_, file) in self.files.iter() {
+            if file.borrow().get_fd() == fd {
+                return file.clone();
+            }
+        }
+        panic!("invalid fd");
     }
     pub fn create_file(&mut self, name : String, table : TableRef) {
         let file = TableFile::new(name.clone(), table, &self.table_file_dir);

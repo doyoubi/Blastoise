@@ -233,9 +233,9 @@ fn test_get_tuple_data() {
 fn test_file_persistence() {
     {
         let config = Config::new(&r#"
-        max_memory_pool_page_num = 2
-        table_meta_dir = "test_file/table_meta/test_file_persistence/"
-        table_file_dir = "test_file/table_file""#.to_string());
+            max_memory_pool_page_num = 2
+            table_meta_dir = "test_file/table_meta/test_file_persistence/"
+            table_file_dir = "test_file/table_file""#.to_string());
         let table_name = "test_file_persistence_message".to_string();
         {
             let manager = Rc::new(RefCell::new(TableManager::new(&config)));
@@ -257,5 +257,64 @@ fn test_file_persistence() {
         assert_eq!(unsafe{ read::<i32>(t1[0] as *const i32) }, 233);
         assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 777);
         assert_eq!(unsafe{ read::<i32>(t3[0] as *const i32) }, 1);
+    }
+    {
+        // test page switch
+        let config = Config::new(&r#"
+            max_memory_pool_page_num = 2
+            table_meta_dir = "test_file/table_meta/test_persistence_with_page_switch/"
+            table_file_dir = "test_file/table_file/test_persistence_with_page_switch/""#.to_string());
+        let table_name = "test_file_persistence_message".to_string();
+        let add_table_name = "test_file_message".to_string();
+        {
+            let manager = Rc::new(RefCell::new(TableManager::new(&config)));
+            manager.borrow_mut().add_table(test_query::gen_test_table(&table_name));
+            test_query::insert_data(&table_name, &manager);
+
+            assert_eq!(manager.borrow().file_manager.page_pool.get_capacity(), 2);
+            manager.borrow_mut().add_table(gen_test_table());
+
+            let mut insert = gen_plan_helper!(
+                "insert test_file_message values(766, \"test\", 2.3333)",
+                &manager);
+            insert.open();
+            assert_pattern!(insert.get_next(), None);
+            assert_pattern!(insert.get_error(), None);
+
+            let mut scan = gen_plan_helper!(
+                "select * from test_file_message", &manager);
+            scan.open();
+            assert_pattern!(scan.get_next(), Some(..));
+            assert_pattern!(insert.get_next(), None);
+
+            manager.borrow_mut().save_to_file();
+        }
+        let manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
+        {
+            let file = manager.borrow_mut().file_manager.get_file(&table_name);
+            assert_eq!(file.borrow().page_sum, 2);
+            assert_eq!(file.borrow().first_free_page, 0);
+            let mut query = gen_plan_helper!(
+                "select * from test_file_persistence_message", &manager);
+            query.open();
+            let t1 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+            let t2 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+            let t3 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+            assert_pattern!(query.get_next(), None);
+            assert_eq!(unsafe{ read::<i32>(t1[0] as *const i32) }, 233);
+            assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 777);
+            assert_eq!(unsafe{ read::<i32>(t3[0] as *const i32) }, 1);
+        }
+        {
+            let file = manager.borrow_mut().file_manager.get_file(&add_table_name);
+            assert_eq!(file.borrow().page_sum, 1);
+            assert_eq!(file.borrow().first_free_page, 0);
+            let mut query = gen_plan_helper!(
+                "select * from test_file_message", &manager);
+            query.open();
+            let t1 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+            assert_pattern!(query.get_next(), None);
+            assert_eq!(unsafe{ read::<i32>(t1[0] as *const i32) }, 766);
+        }
     }
 }

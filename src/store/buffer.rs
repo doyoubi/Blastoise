@@ -20,7 +20,7 @@ pub struct PageKey {
 impl Hash for PageKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let mut n = self.fd as u64;
-        n.rotate_left(32);
+        n = n.rotate_left(32);
         n = n + (self.page_index as u64);
         n.hash(state);
     }
@@ -88,6 +88,9 @@ impl PagePool {
             unpinned : capacity,
         }
     }
+    pub fn get_capacity(&self) -> usize {
+        self.cache.capacity
+    }
     pub fn get_page(&mut self, fd : i32, page_index : u32) -> Option<PageRef> {
         let key = PageKey{ fd : fd, page_index : page_index };
         self.cache.get(&key)
@@ -102,7 +105,7 @@ impl PagePool {
         let key = PageKey{ fd : fd, page_index : page_index };
         let mut new_page = Page::new(fd, page_index);
         new_page.data = ptr;
-        if self.cache.get_load() < self.cache.capacity() {
+        if ptr.is_null() {
             new_page.alloc();
         }
         self.cache.put(&key, Rc::new(RefCell::new(new_page)));

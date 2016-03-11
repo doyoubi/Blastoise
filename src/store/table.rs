@@ -198,6 +198,7 @@ impl TableManager {
     pub fn add_table(&mut self, table : Table) {
         // add new table and create empty file
         let name = table.name.clone();
+        assert!(!self.tables.get(&name).is_some());
         let table_ref = Rc::new(RefCell::new(table));
         self.file_manager.create_file(name.clone(), table_ref.clone());
         self.tables.insert(name, table_ref);

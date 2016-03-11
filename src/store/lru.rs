@@ -111,7 +111,7 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
     }
 
     pub fn prepare_page(&mut self) -> Option<ValueType> {
-        // return if the tail node need flush
+        // return tail value if the tail node need flush
         let head = &mut self.head;
         let mut tail = &mut self.tail;
         let first_gotten_tail : NodePtr<ValueType> = *tail;
@@ -131,7 +131,8 @@ impl<ValueType : CacheValue> LruCache<ValueType> {
         let tail = &mut self.tail;
         let old = extract!(&mut dre!(*tail).value, &mut Some(ref mut old), old);
         assert!(!old.is_pinned());
-        self.hash_map.remove(&dre!(*tail).key);
+        let k = dre!(*tail).key;
+        assert!(self.hash_map.remove(&k).is_some());
         dre!(*tail).value = None;
     }
 
