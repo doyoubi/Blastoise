@@ -15,7 +15,8 @@ use super::test_query::{gen_test_manager, gen_test_table};
 fn test_insert() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let manager = TableManager::make_ref(&config);
     let table_name = "test_insert_message".to_string();
     manager.borrow_mut().add_table(gen_test_table(&table_name));

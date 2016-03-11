@@ -1,4 +1,4 @@
-use std::fs::{metadata, create_dir};
+use std::fs::{metadata, create_dir_all};
 use std::path::Path;
 
 
@@ -19,7 +19,7 @@ pub fn ensure_dir_exist(path : &String) {
         }
         Err(..) => {
             // directory not exist or permission denied
-            check_ok!(create_dir(path));
+            check_ok!(create_dir_all(path));
         }
     }
 }

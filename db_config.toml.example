@@ -1,3 +1,4 @@
 max_memory_pool_page_num = 5
-table_file_dir = "./"
+table_file_dir = "table_file"
+table_meta_dir = "./"
 

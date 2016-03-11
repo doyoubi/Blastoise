@@ -37,7 +37,7 @@ pub fn gen_test_table(table_name : &String) -> Table {
     }
 }
 
-fn insert_data(table_name : &String, manager : &TableManagerRef) {
+pub fn insert_data(table_name : &String, manager : &TableManagerRef) {
     let mut value_list = vec![
         ValueExpr{ value : "233".to_string(), value_type : ValueType::Integer },
         ValueExpr{ value : "666.666".to_string(), value_type : ValueType::Float },
@@ -65,7 +65,8 @@ fn insert_data(table_name : &String, manager : &TableManagerRef) {
 pub fn gen_test_manager(table_name : &String) -> TableManagerRef {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let manager = Rc::new(RefCell::new(TableManager::new(&config)));
     manager.borrow_mut().add_table(gen_test_table(table_name));
     insert_data(table_name, &manager);

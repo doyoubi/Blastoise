@@ -8,7 +8,8 @@ use ::exec::gen_plan::gen_plan;
 fn test_create_table() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let manager = TableManager::make_ref(&config);
     assert_pattern!(manager.borrow().get_table("msg"), None);
     let mut plan = gen_plan_helper!(
@@ -25,7 +26,8 @@ fn test_create_table() {
 fn test_drop_table() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let manager = TableManager::make_ref(&config);
     let table = Table{
         name : "msg".to_string(),

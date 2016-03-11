@@ -10,6 +10,7 @@ use ::store::buffer::{DataPtr, Page};
 use ::store::table::{Table, Attr, AttrType, TableManager};
 use ::parser::common::{ValueExpr, ValueType};
 use ::store::tuple::TupleValue;
+use ::test::exec::test_query;
 use ::test::exec::test_query::gen_test_manager;
 
 
@@ -176,7 +177,8 @@ fn test_file_page_insert() {
 fn test_file_insert() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let mut manager = TableFileManager::new(&config);
     let table = Rc::new(RefCell::new(gen_test_table()));
     let table_name = "test_file_message".to_string();
@@ -206,7 +208,8 @@ fn test_file_insert() {
 fn test_get_tuple_data() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let mut manager = TableFileManager::new(&config);
     let table = Rc::new(RefCell::new(gen_test_table()));
     let table_name = "test_file_message".to_string();
@@ -229,14 +232,17 @@ fn test_get_tuple_data() {
 #[test]
 fn test_file_persistence() {
     {
+        let config = Config::new(&r#"
+        max_memory_pool_page_num = 2
+        table_meta_dir = "test_file/table_meta/test_file_persistence/"
+        table_file_dir = "test_file/table_file""#.to_string());
         let table_name = "test_file_persistence_message".to_string();
         {
-            let manager = gen_test_manager(&table_name);
+            let manager = Rc::new(RefCell::new(TableManager::new(&config)));
+            manager.borrow_mut().add_table(test_query::gen_test_table(&table_name));
+            test_query::insert_data(&table_name, &manager);
             manager.borrow_mut().save_to_file();
         }
-        let config = Config::new(&r#"
-            max_memory_pool_page_num = 2
-            table_file_dir = "table_file""#.to_string());
         let manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
         let file = manager.borrow_mut().file_manager.get_file(&table_name);
         assert_eq!(file.borrow().page_sum, 2);

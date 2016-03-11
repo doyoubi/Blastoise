@@ -104,13 +104,14 @@ fn test_json_translate() {
     };
     let config = Config::new(&r#"
         max_memory_pool_page_num = 5
-        table_file_dir = "table_file""#.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
     let mut manager = TableManager::new(&config);
     manager.add_table(t1);
     manager.add_table(t2);
     assert_eq!(manager.to_json(), remove_blanks(JSON_DATA));
 
-    let gen_manager = TableManager::from_json(&config, &JSON_DATA.to_string());
+    let gen_manager = TableManager::from_json(&config, &JSON_DATA.to_string(), false);
     assert_eq!(gen_manager.to_json(), remove_blanks(JSON_DATA));
 }
 
@@ -118,8 +119,9 @@ fn test_json_translate() {
 fn test_get_table() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 5
-        table_file_dir = "table_file""#.to_string());
-    let manager = TableManager::from_json(&config, &JSON_DATA.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
+    let manager = TableManager::from_json(&config, &JSON_DATA.to_string(), false);
     let table = extract!(manager.get_table("book"), Some(table), table);
     let table = table.borrow();
     assert_eq!(table.name, "book");
@@ -130,8 +132,9 @@ fn test_get_table() {
 fn test_gen_table_set() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 5
-        table_file_dir = "table_file""#.to_string());
-    let manager = TableManager::from_json(&config, &JSON_DATA.to_string());
+        table_meta_dir = "test_file/table_meta/"
+        table_file_dir = "test_file/table_file""#.to_string());
+    let manager = TableManager::from_json(&config, &JSON_DATA.to_string(), false);
     let mut used_table = Vec::new();
     used_table.push("author".to_string());
     used_table.push("book".to_string());

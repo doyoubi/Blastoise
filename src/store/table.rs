@@ -9,6 +9,7 @@ use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
 use ::parser::common::ValueList;
 use ::utils::config::Config;
+use ::utils::file::{path_join, ensure_dir_exist, assert_file_exist};
 use ::store::tuple::TupleValue;
 use super::tuple::TupleDesc;
 use super::file::TableFileManager;
@@ -136,6 +137,7 @@ pub type TableManagerRef = Rc<RefCell<TableManager>>;
 pub struct TableManager {
     tables : BTreeMap<String, TableRef>,
     pub file_manager : TableFileManager,
+    table_meta_dir : String,
 }
 
 impl TableManager {
@@ -143,26 +145,34 @@ impl TableManager {
         Rc::new(RefCell::new(TableManager::new(config)))
     }
     pub fn new(config : &Config) -> TableManager {
+        let table_meta_dir = config.get_str("table_meta_dir");
+        ensure_dir_exist(&table_meta_dir);
         TableManager{
             tables : BTreeMap::new(),
             file_manager : TableFileManager::new(config),
+            table_meta_dir : table_meta_dir,
         }
     }
     pub fn save_to_file(&mut self) {
         self.file_manager.save_all();
+        let full_path = path_join(&self.table_meta_dir, &"table_meta.json".to_string());
         let mut file = OpenOptions::new().read(true).write(true).create(true).open(
-            "./table_meta.json").unwrap();
+            &full_path).unwrap();
         let json_str = self.to_json();
         is_match!(file.write_all(json_str.as_bytes()), Ok(..));
     }
     pub fn from_json_file(config : &Config) -> TableManager {
+        let table_meta_dir = config.get_str("table_meta_dir");
+        let full_path = path_join(&table_meta_dir, &"table_meta.json".to_string());
+        assert_file_exist(&full_path);
         let mut file = OpenOptions::new().read(true).open(
-            "./table_meta.json").unwrap();
+            &full_path).unwrap();
         let mut json_str = String::new();
         assert!(file.read_to_string(&mut json_str).is_ok());
-        Self::from_json(config, &json_str)
+        Self::from_json(config, &json_str, true)
     }
-    pub fn from_json(config : &Config, json : &String) -> TableManager {
+    pub fn from_json(config : &Config, json : &String, init_file : bool) -> TableManager {
+        // setting init_file to false only for tests
         let mut tables = BTreeMap::new();
         let mut table_list = Vec::new();
         let tree : BTreeMap<String, Table> = unwrap!(decode(json));
@@ -173,7 +183,9 @@ impl TableManager {
         }
         let mut manager = Self::new(config);
         manager.tables = tables;
-        manager.file_manager.init_from_file(table_list);
+        if init_file {
+            manager.file_manager.init_from_file(table_list);
+        }
         manager
     }
     pub fn to_json(&self) -> String {
