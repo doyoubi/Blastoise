@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::option::Option;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::fs::OpenOptions;
+use std::io::{Read, Write};
 use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
 use ::parser::common::ValueList;
@@ -146,15 +148,32 @@ impl TableManager {
             file_manager : TableFileManager::new(config),
         }
     }
-    pub fn save_to_file() {}
-    pub fn from_json(config : &Config, json : &str) -> TableManager {
+    pub fn save_to_file(&mut self) {
+        self.file_manager.save_all();
+        let mut file = OpenOptions::new().read(true).write(true).create(true).open(
+            "./table_meta.json").unwrap();
+        let json_str = self.to_json();
+        is_match!(file.write_all(json_str.as_bytes()), Ok(..));
+    }
+    pub fn from_json_file(config : &Config) -> TableManager {
+        let mut file = OpenOptions::new().read(true).open(
+            "./table_meta.json").unwrap();
+        let mut json_str = String::new();
+        assert!(file.read_to_string(&mut json_str).is_ok());
+        Self::from_json(config, &json_str)
+    }
+    pub fn from_json(config : &Config, json : &String) -> TableManager {
         let mut tables = BTreeMap::new();
+        let mut table_list = Vec::new();
         let tree : BTreeMap<String, Table> = unwrap!(decode(json));
         for (name, table) in tree.iter() {
-            tables.insert(name.clone(), Rc::new(RefCell::new(table.clone())));
+            let t = Rc::new(RefCell::new(table.clone()));
+            tables.insert(name.clone(), t.clone());
+            table_list.push(t);
         }
         let mut manager = Self::new(config);
         manager.tables = tables;
+        manager.file_manager.init_from_file(table_list);
         manager
     }
     pub fn to_json(&self) -> String {
@@ -165,6 +184,7 @@ impl TableManager {
         unwrap!(encode(&tree))
     }
     pub fn add_table(&mut self, table : Table) {
+        // add new table and create empty file
         let name = table.name.clone();
         let table_ref = Rc::new(RefCell::new(table));
         self.file_manager.create_file(name.clone(), table_ref.clone());

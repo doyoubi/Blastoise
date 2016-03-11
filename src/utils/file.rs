@@ -23,3 +23,16 @@ pub fn ensure_dir_exist(path : &String) {
         }
     }
 }
+
+pub fn assert_file_exist(path : &String) {
+    match metadata(path) {
+        Ok(m) => {
+            if !m.is_file() {
+                panic!("{:?} is not a file", path);
+            }
+        }
+        Err(err) => {
+            panic!("{:?}", err);
+        }
+    }
+}

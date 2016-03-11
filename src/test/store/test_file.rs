@@ -7,9 +7,10 @@ use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::utils::config::Config;
 use ::store::file::{TableFile, FilePage, BitMap, PageHeader, TableFileManager};
 use ::store::buffer::{DataPtr, Page};
-use ::store::table::{Table, Attr, AttrType};
+use ::store::table::{Table, Attr, AttrType, TableManager};
 use ::parser::common::{ValueExpr, ValueType};
 use ::store::tuple::TupleValue;
+use ::test::exec::test_query::gen_test_manager;
 
 
 #[test]
@@ -201,6 +202,7 @@ fn test_file_insert() {
         manager.get_tuple_value(&table_name, 1, 1), TupleValue::Char(s), s), "dyb");
 }
 
+#[test]
 fn test_get_tuple_data() {
     let config = Config::new(&r#"
         max_memory_pool_page_num = 2
@@ -222,4 +224,32 @@ fn test_get_tuple_data() {
     assert_eq!(unsafe{ read::<i32>(p1 as *const i32) }, 233);
     assert_eq!(unsafe{ read_string(p2, 6) }, "abcdef");
     assert_eq!(unsafe{ read::<f32>(p3 as *const f32) }, 666.666);
+}
+
+#[test]
+fn test_file_persistence() {
+    {
+        let table_name = "test_file_persistence_message".to_string();
+        {
+            let manager = gen_test_manager(&table_name);
+            manager.borrow_mut().save_to_file();
+        }
+        let config = Config::new(&r#"
+            max_memory_pool_page_num = 2
+            table_file_dir = "table_file""#.to_string());
+        let manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
+        let file = manager.borrow_mut().file_manager.get_file(&table_name);
+        assert_eq!(file.borrow().page_sum, 2);
+        assert_eq!(file.borrow().first_free_page, 0);
+        let mut query = gen_plan_helper!(
+            "select * from test_file_persistence_message", &manager);
+        query.open();
+        let t1 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        let t2 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        let t3 = extract!(query.get_next(), Some(tuple_data), tuple_data);
+        assert_pattern!(query.get_next(), None);
+        assert_eq!(unsafe{ read::<i32>(t1[0] as *const i32) }, 233);
+        assert_eq!(unsafe{ read::<i32>(t2[0] as *const i32) }, 777);
+        assert_eq!(unsafe{ read::<i32>(t3[0] as *const i32) }, 1);
+    }
 }

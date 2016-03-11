@@ -6,7 +6,7 @@ mod test_create_drop;
 mod test_change;
 #[allow(dead_code)]
 #[allow(unused_imports)]
-mod test_query;
+pub mod test_query;
 #[allow(dead_code)]
 #[allow(unused_imports)]
 mod test_evaluate;

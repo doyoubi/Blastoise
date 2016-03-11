@@ -21,7 +21,7 @@ use super::change::{Insert, CheckAndInsert, Update, Delete};
 use super::query::{FileScan, Filter, Projection};
 
 
-pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef, _table_set : TableSet)
+pub fn gen_plan(stmt : Statement, table_manager : &TableManagerRef)
         -> ExecIterRef {
     match stmt {
         Statement::Create(create) => gen_create_plan(create, table_manager),

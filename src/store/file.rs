@@ -3,14 +3,14 @@ use std::mem::size_of;
 use std::ptr::{write, read, write_bytes, null_mut};
 use std::fs::{OpenOptions, File};
 use std::os::unix::io::AsRawFd;
-use std::slice::from_raw_parts;
+use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::io::{Read, Write, Seek, SeekFrom};
 use std::rc::Rc;
 use std::cell::RefCell;
 use ::utils::libwrapper::get_page_size;
 use ::utils::pointer::{read_string, write_string, pointer_offset};
 use ::utils::config::Config;
-use ::utils::file::{path_join, ensure_dir_exist};
+use ::utils::file::{path_join, ensure_dir_exist, assert_file_exist};
 use ::parser::common::{ValueList, ValueType};
 use super::buffer::{DataPtr, PageRef, PagePool};
 use super::table::{TableRef, AttrType, IndexMap};
@@ -302,6 +302,24 @@ impl TableFile {
             tuple_desc : tuple_desc,
         }
     }
+    pub fn init_from_file(&mut self) {
+        is_match!(self.file.seek(SeekFrom::Start(0)), Ok(..));
+        let mut header = [0 as u32, 0 as u32];
+        is_match!(self.file.read_exact(unsafe{
+            from_raw_parts_mut::<u8>((&mut header).as_ptr() as *mut u8, 8)
+        }), Ok(..));
+        self.page_sum = header[0] as usize;
+        self.first_free_page = header[1] as usize;
+    }
+    pub fn read_page_from_file(&mut self, data : DataPtr, page_index : usize) {
+        assert!(page_index < self.page_sum);
+        let page_size = get_page_size();
+        let offset = page_size * (page_index + 1);
+        is_match!(self.file.seek(SeekFrom::Start(offset as u64)), Ok(..));
+        is_match!(self.file.read_exact(unsafe{
+            from_raw_parts_mut::<u8>(data as *mut u8, page_size)
+        }), Ok(..));
+    }
     pub fn get_page_slot_sum(&self) -> usize {
         get_slot_sum(self.tuple_desc.tuple_len)
     }
@@ -312,14 +330,21 @@ impl TableFile {
         is_match!(self.file.write_all(unsafe{
             from_raw_parts::<u8>((&header).as_ptr() as *const u8, 8)
         }), Ok(..));
-        // TODO: write page data to file
+        let index_list : Vec<_> = self.loaded_pages.iter().map(|(i, _)| *i).collect();
+        for i in index_list.iter() {
+            self.save_page(*i);
+        }
     }
     pub fn save_page(&mut self, page_index : usize) {
         // the first page only save header for alignment
-        let _offset = get_page_size() * (page_index + 1);
-        // TODO: write page data to file
+        let page_size = get_page_size();
+        let offset = page_size * (page_index + 1);
+        let page = self.loaded_pages.get(&page_index).unwrap();
+        is_match!(self.file.seek(SeekFrom::Start(offset as u64)), Ok(..));
+        is_match!(self.file.write_all(unsafe{
+            from_raw_parts::<u8>(page.mem_page.borrow().data as *const u8, page_size)
+        }), Ok(..));
     }
-    pub fn init_from_file(&mut self) {}
     pub fn delete(&mut self, ptr : DataPtr) {
         for (_, page) in &mut self.loaded_pages {
             if page.is_in_page(ptr) {
@@ -369,7 +394,6 @@ impl TableFile {
         let file_page = FilePage::new(mem_page, self.tuple_desc.tuple_len);
         let index = file_page.mem_page.borrow().page_index as usize;
         self.loaded_pages.insert(index, file_page);
-        self.page_sum += 1;
     }
     pub fn get_fd(&self) -> i32 {
         self.file.as_raw_fd()
@@ -402,8 +426,21 @@ impl TableFileManager {
             table_file_dir : table_file_dir,
         }
     }
-    pub fn from_files(_path : &str) -> TableFileManager {
-        unimplemented!()
+    pub fn init_from_file(&mut self, tables : Vec<TableRef>) {
+        for table in &tables {
+            let table_name = table.borrow().name.clone();
+            let mut file_name = table_name.clone();
+            file_name.push_str(".table");
+            let full_path = path_join(&self.table_file_dir, &file_name);
+            assert_file_exist(&full_path);
+            self.create_file(table_name.clone(), table.clone());
+            self.files.get_mut(&table_name).unwrap().borrow_mut().init_from_file();
+        }
+    }
+    pub fn save_all(&mut self) {
+        for (_, f)  in self.files.iter() {
+            f.borrow_mut().save_to_file();
+        }
     }
     pub fn delete(&mut self, table : &String, ptr : DataPtr) {
         let file = self.get_file(table);
@@ -442,7 +479,8 @@ impl TableFileManager {
         let mut first_free_page;
         loop {
             first_free_page = file.borrow().first_free_page;
-            if first_free_page >= page_sum { break; }
+            assert!(first_free_page <= page_sum);
+            if first_free_page == page_sum { break; }
             self.ensure_page_loaded(&file, first_free_page);
             if file.borrow().loaded_pages.get(&first_free_page).unwrap().is_full() {
                 file.borrow_mut().first_free_page += 1;
@@ -505,11 +543,14 @@ impl TableFileManager {
         None
     }
     pub fn ensure_page_loaded(&mut self, file : &TableFileRef, page_index : usize) {
+        let page_sum = file.borrow().page_sum;
+        assert!(page_index < page_sum || page_index == page_sum);  // old page or new page
         let page_exist = file.borrow().loaded_pages.get(&page_index).is_some();  // fight borrow checker
         if !page_exist {
             let fd = file.borrow().get_fd();
             let mut ptr = null_mut();
             if let Some(page) = self.page_pool.prepare_page() {
+                // save tail page
                 let page_index = page.borrow().page_index;
                 ptr = page.borrow().data;
                 file.borrow_mut().save_page(page_index as usize);
@@ -517,6 +558,11 @@ impl TableFileManager {
                 self.page_pool.remove_tail();
             }
             self.page_pool.put_page(fd, page_index as u32, ptr);
+            if page_index < page_sum {
+                file.borrow_mut().read_page_from_file(ptr, page_index);
+            } else {
+                file.borrow_mut().page_sum += 1;
+            }
             file.borrow_mut().add_page(self.page_pool.get_page(fd, page_index as u32).unwrap());
         }
     }
