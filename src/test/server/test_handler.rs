@@ -1,5 +1,5 @@
 use ::server::handler::{sql_handler, ResultHandler};
-use ::store::tuple::TupleData;
+use ::store::tuple::TupleValue;
 use ::store::table::TableManager;
 use ::utils::config::Config;
 
@@ -20,7 +20,7 @@ impl ResultHandler for MockHandler {
     fn handle_error(&mut self, err_msg : String) {
         self.helper_data = err_msg
     }
-    fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>) {
+    fn handle_tuple_data(&mut self, tuple_data : Option<Vec<TupleValue>>) {
         match tuple_data {
             Some(..) => self.helper_data.push('1'),
             None => self.helper_data.push('0'),

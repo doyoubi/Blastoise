@@ -1,4 +1,6 @@
 use std::vec::Vec;
+use std::ptr::read;
+use utils::pointer::read_string;
 use super::buffer::DataPtr;
 use super::table::{AttrType, Attr};
 
@@ -38,4 +40,19 @@ pub fn tuple_len(attr_list : &Vec<Attr>) -> usize {
         }
     }
     l
+}
+
+pub fn gen_tuple_value(tuple_desc : &TupleDesc, tuple_data : TupleData) -> Vec<TupleValue> {
+    let mut value_list = Vec::new();
+    let desc = &tuple_desc.attr_desc;
+    assert_eq!(desc.len(), tuple_data.len());
+    for (attr, p) in desc.iter().zip(tuple_data.iter()) {
+        let value = match attr {
+            &AttrType::Int => TupleValue::Int(unsafe{read::<i32>(*p as *const i32)}),
+            &AttrType::Float => TupleValue::Float(unsafe{read::<f32>(*p as *const f32)}),
+            &AttrType::Char{len} => TupleValue::Char(unsafe{read_string(*p, len)}),
+        };
+        value_list.push(value);
+    }
+    value_list
 }

@@ -11,3 +11,5 @@ mod exec;
 mod server;
 
 mod test;
+
+pub use server::local_client::LocalClient;

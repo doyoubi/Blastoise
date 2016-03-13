@@ -1,3 +1,7 @@
+extern crate blastoise;
+
 fn main() {
-    println!("Hello, world!");
+    let mut client = blastoise::LocalClient;
+    println!("starting Blastoise shell");
+    client.shell_loop();
 }

@@ -215,7 +215,9 @@ impl TableManager {
     pub fn gen_table_set(&self, used_table : &Vec<String>) -> TableSet {
         let mut tables = HashMap::new();
         for name in used_table.iter() {
-            tables.insert(name.clone(), self.tables.get(name).unwrap().borrow().clone());
+            if let Some(t) = self.tables.get(name) {
+                tables.insert(name.clone(), t.borrow().clone());
+            }
         }
         TableSet{ tables : tables }
     }

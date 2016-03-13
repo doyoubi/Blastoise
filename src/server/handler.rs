@@ -3,8 +3,8 @@ use ::parser::common::Statement;
 use ::parser::compile_error::ErrorList;
 use ::parser::lexer::{TokenLine, TokenType};
 use ::parser::sem_check::check_sem;
-use ::store::tuple::TupleData;
-use ::store::table::TableManagerRef;
+use ::store::tuple::{TupleValue, gen_tuple_value};
+use ::store::table::{TableManagerRef, Table, TableSet};
 use ::exec::gen_plan::{gen_table_set, gen_plan};
 use ::exec::error::ExecError;
 
@@ -13,8 +13,9 @@ pub type ResultHandlerRef = Box<ResultHandler>;
 
 pub trait ResultHandler {
     fn handle_error(&mut self, err_msg : String);
-    fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>);
+    fn handle_tuple_data(&mut self, tuple_data : Option<Vec<TupleValue>>);
 }
+
 
 fn gen_parse_result(input : &String) -> Result<Statement, ErrorList> {
     let line = TokenLine::parse(input);
@@ -35,21 +36,50 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
     if let Err(ref err_list) = check_sem(&mut stmt, &table_set) {
         return result_handler.handle_error(handle_sql_err(err_list));
     }
-    let mut plan = gen_plan(stmt, manager);
-    plan.open();
-    loop {
-        match plan.get_next() {
-            Some(tuple_data) => result_handler.handle_tuple_data(Some(tuple_data)),
-            None => {
-                if let Some(ref err) = plan.get_error() {
-                    result_handler.handle_error(handle_exec_err(err));
-                } else {
-                    result_handler.handle_tuple_data(None);
+
+    match &stmt {
+        &Statement::Create(..) | &Statement::Drop(..) => {
+            let mut plan = gen_plan(stmt, manager);
+            plan.open();
+            is_match!(plan.get_next(), None);
+            if let Some(ref err) = plan.get_error() {
+                result_handler.handle_error(handle_exec_err(err));
+            } else {
+                result_handler.handle_tuple_data(None);
+            }
+        }
+        _ => {
+            let mut plan = gen_plan(stmt, manager);
+            plan.open();
+            let table = get_table(&table_set);
+            let tuple_desc = table.gen_tuple_desc();
+            loop {
+                match plan.get_next() {
+                    Some(tuple_data) => {
+                        let tuple_value = gen_tuple_value(&tuple_desc, tuple_data);
+                        result_handler.handle_tuple_data(Some(tuple_value));
+                    }
+                    None => {
+                        if let Some(ref err) = plan.get_error() {
+                            result_handler.handle_error(handle_exec_err(err));
+                        } else {
+                            result_handler.handle_tuple_data(None);
+                        }
+                        break;
+                    }
                 }
-                break;
             }
         }
     }
+}
+
+fn get_table(table_set : &TableSet) -> Table {
+    // only suport one table now
+    assert_eq!(table_set.tables.len(), 1);
+    for (_, t) in table_set.tables.iter() {
+        return t.clone();
+    }
+    panic!("empty table set");
 }
 
 fn handle_sql_err(err_list : &ErrorList) -> String {
@@ -58,7 +88,7 @@ fn handle_sql_err(err_list : &ErrorList) -> String {
         let msg = match err.token.token_type {
             TokenType::UnKnown =>
                 format!("{:?}: {}", err.error_type, err.error_msg),
-            _ => format!("{:?} {} `{}`: {}",
+            _ => format!("{:?} column{} `{}`: {}",
                 err.error_type, err.token.column, err.token.value, err.error_msg),
         };
         err_msg.push_str(&msg);

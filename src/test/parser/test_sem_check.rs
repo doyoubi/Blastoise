@@ -296,6 +296,14 @@ fn test_check_select() {
 }
 
 #[test]
+fn test_select_table_not_exist() {
+    let table_set = TableSet::new();
+    let mut select = gen_parse_result!(SelectStatement::parse,
+        "select msg.id from msg");
+    assert_err!(check_select(&mut select, &table_set), CompileErrorType::SemTableNotExist);
+}
+
+#[test]
 fn test_complete_table_in_attribute() {
     let mut table_set = TableSet::new();
     add_table(&mut table_set);

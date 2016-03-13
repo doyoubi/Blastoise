@@ -4,7 +4,7 @@ use super::attribute::AttributeExpr;
 use super::lexer::{Token, TokenRef, TokenType};
 use super::compile_error::{CompileError, CompileErrorType, ErrorList, ErrorRef};
 use super::common::{Statement, ValueExpr, ValueType};
-use super::select::{SelectStatement, GroupbyHaving, SelectExpr};
+use super::select::{SelectStatement, GroupbyHaving, SelectExpr, Relation};
 use super::update::UpdateStatement;
 use super::insert::InsertStatement;
 use super::delete::DeleteStatement;
@@ -28,6 +28,11 @@ pub fn check_sem(statement : &mut Statement, table_set : &TableSet) -> SemResult
 }
 
 pub fn check_select(stmt : &mut SelectStatement, table_set : &TableSet) -> SemResult {
+    // join not supported now
+    assert_eq!(stmt.relation_list.len(), 1);
+    let table_name = extract!(&stmt.relation_list[0], &Relation::TableName(ref name), name.clone());
+    try!(check_table_exist(&table_name, table_set));
+
     if let Some(ref mut cond) = stmt.where_condition {
         try!(check_condition(cond, table_set, &None));
     }
