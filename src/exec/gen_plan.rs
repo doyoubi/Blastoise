@@ -13,7 +13,7 @@ use ::parser::{
     CreateStatement,
     DropStatement,
 };
-use ::store::table::{TableSet, TableManagerRef};
+use ::store::table::{TableSet, TableManagerRef, TableRef};
 use ::store::tuple::TupleValue; 
 use super::iter::ExecIterRef;
 use super::create_drop::{CreateTable, DropTable};
@@ -46,24 +46,76 @@ pub fn gen_select_plan(stmt : SelectStatement, table_manager : &TableManagerRef)
     let table_name = extract!(&stmt.relation_list[0], &Relation::TableName(ref name), name.clone());
     let table = table_manager.borrow().get_table(&table_name).unwrap();
     let mut query = FileScan::new(&table_name, table_manager);
+    let (attr_index, proj_attr_list) = gen_select_proj_info(&stmt, &table);
+    let need_proj = is_match!(stmt.select_expr, SelectExpr::AttrList(..));
     if let Some(cond) = stmt.where_condition {
         query = Filter::new(Box::new(cond),
             table.borrow().gen_index_map(),
             table.borrow().gen_tuple_desc(), query);
     }
-    let mut proj_attr_index = Vec::new();
-    let mut proj_attr_list = Vec::new();
-    let index_map = table.borrow().gen_index_map();
-    if let SelectExpr::AttrList(attr_list) = stmt.select_expr {
-        for attr in attr_list.iter() {
-            let table_and_attr = extract!(attr, &AttributeExpr::TableAttr{ref table, ref attr},
-                (table.clone().unwrap(), attr.clone()));
-            proj_attr_index.push(index_map.get(&table_and_attr).unwrap().clone());
-            proj_attr_list.push(table_and_attr);
-        }
-        query = Projection::new(&index_map, proj_attr_list, query);
+    if need_proj {
+        query = Projection::new(attr_index, proj_attr_list, query);
     }
     query
+}
+
+pub fn gen_select_proj_info(
+        stmt : &SelectStatement, table : &TableRef) -> (Vec<usize>, Vec<(String, String)>) {
+    let table = table.borrow();
+    let mut proj_attr_index = Vec::new();
+    let mut proj_attr_list = Vec::new();
+    let mut table_and_attr_list = match stmt.select_expr {
+        SelectExpr::AttrList(ref l) => {
+            let mut table_and_attr_list = Vec::new();
+            for attr in l {
+                let table_and_attr = extract!(attr, &AttributeExpr::TableAttr{ref table, ref attr},
+                    (table.clone().unwrap(), attr.clone()));
+                table_and_attr_list.push(table_and_attr);
+            }
+            table_and_attr_list
+        }
+        SelectExpr::AllAttribute => {
+            table.get_attr_name_list().iter().map(|a| (table.name.clone(), a.clone())).collect()
+        }
+    };
+    let index_map = table.gen_index_map();
+    for table_and_attr in table_and_attr_list.drain(..) {
+        proj_attr_index.push(index_map.get(&table_and_attr).unwrap().clone());
+        proj_attr_list.push(table_and_attr);
+    }
+    (proj_attr_index, proj_attr_list)
+}
+
+pub fn gen_proj_info(
+        stmt : &Statement, table_manager : &TableManagerRef) -> (Vec<usize>, Vec<(String, String)>) {
+    let mut proj_attr_index = Vec::new();
+    let mut proj_attr_list = Vec::new();
+    let table = get_stmt_table(stmt, table_manager);
+    if let &Statement::Select(ref select) = stmt {
+        return gen_select_proj_info(select, &table);
+    } else {
+        let table = table.borrow();
+        let table_name = table.name.clone();
+        for (i, attr) in table.attr_list.iter().enumerate() {
+            proj_attr_list.push((table_name.clone(), attr.name.clone()));
+            proj_attr_index.push(i);
+        }
+    }
+    (proj_attr_index, proj_attr_list)
+}
+
+pub fn get_stmt_table(stmt : &Statement, table_manager : &TableManagerRef) -> TableRef {
+    match stmt {
+        &Statement::Create(..) | &Statement::Drop(..) => panic!("invalid state"),
+        &Statement::Insert(ref insert) => table_manager.borrow().get_table(&insert.table).unwrap(),
+        &Statement::Update(ref update) => table_manager.borrow().get_table(&update.table).unwrap(),
+        &Statement::Delete(ref delete) => table_manager.borrow().get_table(&delete.table).unwrap(),
+        &Statement::Select(ref select) => {
+            let table_name = extract!(
+                select.relation_list[0], Relation::TableName(ref name), name);
+            table_manager.borrow().get_table(&table_name).unwrap()
+        }
+    }
 }
 
 pub fn gen_delete_plan(stmt : DeleteStatement, table_manager : &TableManagerRef) -> ExecIterRef {

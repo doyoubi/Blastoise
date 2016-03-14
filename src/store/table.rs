@@ -73,6 +73,9 @@ impl Table {
         }
         index
     }
+    pub fn get_attr_name_list(&self) -> Vec<String> {
+        self.attr_list.iter().map(|a| a.name.clone()).collect()
+    }
 }
 
 

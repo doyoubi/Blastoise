@@ -5,7 +5,7 @@ use super::buffer::DataPtr;
 use super::table::{AttrType, Attr};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TupleValue {
     Int(i32),
     Float(f32),
@@ -42,11 +42,10 @@ pub fn tuple_len(attr_list : &Vec<Attr>) -> usize {
     l
 }
 
-pub fn gen_tuple_value(tuple_desc : &TupleDesc, tuple_data : TupleData) -> Vec<TupleValue> {
+pub fn gen_tuple_value(attr_desc : &Vec<AttrType>, tuple_data : TupleData) -> Vec<TupleValue> {
     let mut value_list = Vec::new();
-    let desc = &tuple_desc.attr_desc;
-    assert_eq!(desc.len(), tuple_data.len());
-    for (attr, p) in desc.iter().zip(tuple_data.iter()) {
+    assert_eq!(attr_desc.len(), tuple_data.len());
+    for (attr, p) in attr_desc.iter().zip(tuple_data.iter()) {
         let value = match attr {
             &AttrType::Int => TupleValue::Int(unsafe{read::<i32>(*p as *const i32)}),
             &AttrType::Float => TupleValue::Float(unsafe{read::<f32>(*p as *const f32)}),

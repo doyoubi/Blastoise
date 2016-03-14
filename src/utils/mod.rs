@@ -8,3 +8,5 @@ pub mod pointer;
 pub mod config;
 #[allow(dead_code)]
 pub mod file;
+#[allow(dead_code)]
+pub mod array;

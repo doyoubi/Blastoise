@@ -193,3 +193,10 @@ fn test_is_not() {
     assert_error_len!(h, 0);
     assert_token_eq!(h, 1, "is not", TokenType::IsNot);
 }
+
+#[test]
+fn test_ascii() {
+    let h = TokenTestHelper::new("select 光星 from 深大");
+    assert_error_len!(h, 1);
+    assert_error_eq!(h, 0, CompileErrorType::LexerInvalidAscii);
+}

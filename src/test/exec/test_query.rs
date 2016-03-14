@@ -9,6 +9,7 @@ use ::parser::condition::ConditionExpr;
 use ::utils::config::Config;
 use ::exec::query::{FileScan, Filter, Projection};
 use ::exec::iter::ExecIterRef;
+use ::exec::gen_plan::gen_proj_info;
 
 
 pub fn gen_test_table(table_name : &String) -> Table {
@@ -172,12 +173,12 @@ fn test_projection() {
     let table_name = "test_query_message".to_string();
     let manager = gen_test_manager(&table_name);
     let scan = FileScan::new(&table_name, &manager);
-    let table = gen_test_table(&table_name);
     let projs = vec![
         ("test_query_message".to_string(), "id".to_string()),
         ("test_query_message".to_string(), "content".to_string()),
     ];
-    let mut plan = Projection::new(&table.gen_index_map(), projs, scan);
+    let attr_index = vec![0, 2];
+    let mut plan = Projection::new(attr_index, projs, scan);
     plan.open();
     let mut tuple_data = plan.get_next().unwrap();
     assert_eq!(tuple_data.len(), 2);

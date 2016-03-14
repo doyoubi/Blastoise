@@ -192,16 +192,12 @@ pub struct Projection {
 
 impl Projection {
     pub fn new(
-            index_map : &IndexMap,
+            attr_index : Vec<usize>,
             proj_attr_list : Vec<(String, String)>,
             inner_iter : ExecIterRef) -> ExecIterRef {
-        let mut proj_attr_index = Vec::new();
-        for k in proj_attr_list.iter() {
-            proj_attr_index.push(index_map.get(&k).unwrap().clone());
-        }
         Box::new(Projection{
             data_source : inner_iter,
-            proj_attr_index : proj_attr_index,
+            proj_attr_index : attr_index,
             proj_attr_list : proj_attr_list,
             finished : false,
         })

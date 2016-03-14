@@ -3,17 +3,20 @@ use ::parser::common::Statement;
 use ::parser::compile_error::ErrorList;
 use ::parser::lexer::{TokenLine, TokenType};
 use ::parser::sem_check::check_sem;
-use ::store::tuple::{TupleValue, gen_tuple_value};
-use ::store::table::{TableManagerRef, Table, TableSet};
+use ::store::tuple::TupleData;
+use ::store::table::{TableManagerRef, Table, TableSet, AttrType};
 use ::exec::gen_plan::{gen_table_set, gen_plan};
+use ::exec::gen_plan::gen_proj_info;
 use ::exec::error::ExecError;
+use ::utils::array::projection;
 
 
 pub type ResultHandlerRef = Box<ResultHandler>;
 
 pub trait ResultHandler {
     fn handle_error(&mut self, err_msg : String);
-    fn handle_tuple_data(&mut self, tuple_data : Option<Vec<TupleValue>>);
+    fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>);
+    fn set_tuple_info(&mut self, attr_desc : Vec<AttrType>, attr_index : Vec<usize>);
 }
 
 
@@ -49,15 +52,18 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
             }
         }
         _ => {
+            let table = get_table(&table_set);
+            let mut attr_desc = table.gen_tuple_desc().attr_desc;
+            let (attr_index, _) = gen_proj_info(&stmt, &manager);
+            attr_desc = projection(&attr_index, attr_desc);
+            result_handler.set_tuple_info(attr_desc, attr_index);
+
             let mut plan = gen_plan(stmt, manager);
             plan.open();
-            let table = get_table(&table_set);
-            let tuple_desc = table.gen_tuple_desc();
             loop {
                 match plan.get_next() {
                     Some(tuple_data) => {
-                        let tuple_value = gen_tuple_value(&tuple_desc, tuple_data);
-                        result_handler.handle_tuple_data(Some(tuple_value));
+                        result_handler.handle_tuple_data(Some(tuple_data));
                     }
                     None => {
                         if let Some(ref err) = plan.get_error() {

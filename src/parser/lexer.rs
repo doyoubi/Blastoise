@@ -1,8 +1,10 @@
 extern crate std;
 use std::rc::Rc;
 use std::option::Option::{Some, None};
+use std::result::Result;
+use std::result::Result::{Ok, Err};
 use std::slice::Iter;
-use ::parser::compile_error::{CompileError, CompileErrorType, ErrorList};
+use ::parser::compile_error::{CompileError, CompileErrorType, ErrorList, ErrorRef};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TokenType {
@@ -91,6 +93,11 @@ enum State
 impl TokenLine {
     pub fn parse(code_string : &str) -> TokenLine {
         let mut line = TokenLine{ tokens : TokenList::new(), errors : ErrorList::new() };
+        if let Err(err) = check_ascii(code_string) {
+            line.errors.push(err);
+            return line; 
+        }
+
         let mut state = State::Begin;
         let tail = code_string.len();
         let head_unused_tag = -1;
@@ -192,7 +199,7 @@ impl TokenLine {
                         head = i;
                     } else {
                         add_error(CompileErrorType::LexerUnexpectedChar, c.to_string(),
-                            format!("illegal char found: '{}", c), head, i, &mut line);
+                            format!("illegal char found: '{}'", c), head, i, &mut line);
                     }
                 }
                 State::InIdentifier => {
@@ -293,6 +300,23 @@ impl TokenLine {
 
         line
     }
+}
+
+fn check_ascii(input : &str) -> Result<(), ErrorRef> {
+    for c in input.chars() {
+        let n = c as i32;
+        if 0 <= n && n < 128 {continue;}
+        return Err(Rc::new(CompileError{
+            error_type : CompileErrorType::LexerInvalidAscii,
+            error_msg : format!("invalid ascii char: {}", c),
+            token : Rc::new(Token{
+                column : 0,
+                value : "".to_string(),
+                token_type : TokenType::UnKnown
+            }),  // dummy token
+        }));
+    }
+    Ok(())
 }
 
 fn get_unescaped_string(s : &str) -> Option<String> {

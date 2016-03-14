@@ -9,6 +9,7 @@ pub enum CompileErrorType {
     LexerUnexpectedChar,
     LexerInCompleteString,
     LexerInvalidFloat,
+    LexerInvalidAscii,
 
     ParserNoMoreToken,
     ParserUnExpectedTokenType,
