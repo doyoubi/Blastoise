@@ -40,5 +40,5 @@ fn test_handler() {
     let mut handler = MockHandler::new();
     let sql = "create table msg(id int not null primary)".to_string();
     sql_handler(&sql, &mut handler, &manager);
-    assert_eq!(handler.helper_data, "0");
+    assert_eq!(handler.helper_data, "");
 }

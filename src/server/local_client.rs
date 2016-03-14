@@ -1,5 +1,7 @@
 use std::io::{stdin, stdout};
 use std::io::Write;
+use std::rc::Rc;
+use std::cell::RefCell;
 use ::store::table::TableManager;
 use ::store::tuple::TupleData;
 use ::store::table::AttrType;
@@ -14,7 +16,7 @@ pub struct LocalClient;
 impl LocalClient {
     pub fn shell_loop(&mut self) {
         let config = Config::from_cwd_config();
-        let mut manager = TableManager::make_ref(&config);
+        let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
         let mut sql = String::new();
         let mut line = String::new();
         let mut process = Process::new();

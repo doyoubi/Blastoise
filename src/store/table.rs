@@ -9,7 +9,7 @@ use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
 use rustc_serialize::json::{encode, decode};
 use ::parser::common::ValueList;
 use ::utils::config::Config;
-use ::utils::file::{path_join, ensure_dir_exist, assert_file_exist};
+use ::utils::file::{path_join, ensure_dir_exist};
 use ::store::tuple::TupleValue;
 use super::tuple::TupleDesc;
 use super::file::TableFileManager;
@@ -166,12 +166,13 @@ impl TableManager {
     }
     pub fn from_json_file(config : &Config) -> TableManager {
         let table_meta_dir = config.get_str("table_meta_dir");
+        ensure_dir_exist(&table_meta_dir);
         let full_path = path_join(&table_meta_dir, &"table_meta.json".to_string());
-        assert_file_exist(&full_path);
-        let mut file = OpenOptions::new().read(true).open(
+        let mut file = OpenOptions::new().read(true).create(true).open(
             &full_path).unwrap();
         let mut json_str = String::new();
         assert!(file.read_to_string(&mut json_str).is_ok());
+        if json_str.len() == 0 { return TableManager::new(config) }
         Self::from_json(config, &json_str, true)
     }
     pub fn from_json(config : &Config, json : &String, init_file : bool) -> TableManager {

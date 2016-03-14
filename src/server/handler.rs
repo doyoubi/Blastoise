@@ -41,17 +41,7 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
     }
 
     match &stmt {
-        &Statement::Create(..) | &Statement::Drop(..) => {
-            let mut plan = gen_plan(stmt, manager);
-            plan.open();
-            is_match!(plan.get_next(), None);
-            if let Some(ref err) = plan.get_error() {
-                result_handler.handle_error(handle_exec_err(err));
-            } else {
-                result_handler.handle_tuple_data(None);
-            }
-        }
-        _ => {
+        &Statement::Select(..) => {
             let table = get_table(&table_set);
             let mut attr_desc = table.gen_tuple_desc().attr_desc;
             let (attr_index, _) = gen_proj_info(&stmt, &manager);
@@ -74,6 +64,21 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
                         break;
                     }
                 }
+            }
+        }
+        _ => {
+            let mut plan = gen_plan(stmt, manager);
+            plan.open();
+            loop {
+                match plan.get_next() {
+                    Some(..) => continue,
+                    None => break,
+                }
+            }
+            if let Some(ref err) = plan.get_error() {
+                result_handler.handle_error(handle_exec_err(err));
+            } else {
+                manager.borrow_mut().save_to_file();
             }
         }
     }
