@@ -21,6 +21,8 @@ pub mod delete;
 pub mod create_drop;
 #[allow(dead_code)]
 pub mod sem_check;
+#[allow(dead_code)]
+pub mod unimpl;
 
 pub use self::select::SelectStatement;
 pub use self::update::UpdateStatement;

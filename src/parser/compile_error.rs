@@ -35,6 +35,8 @@ pub enum CompileErrorType {
     SemInvalidInsertCharLen,
     SemChangePrimaryAttr,
     SemSelectAllWithGroupBy,
+
+    SemUnimplemented,
 }
 
 #[derive(Debug)]
