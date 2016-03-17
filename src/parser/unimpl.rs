@@ -1,5 +1,5 @@
 use super::sem_check::dummy_token;
-use super::common::ValueType;
+use super::common::{ValueType, Statement};
 use super::attribute::AttributeExpr;
 use super::compile_error::{CompileError, CompileErrorType, ErrorList, ErrorRef};
 use super::condition::{ConditionExpr, ArithExpr, CmpOperantExpr};
@@ -7,6 +7,27 @@ use super::select::{SelectStatement, SelectExpr, Relation};
 
 
 pub type UnimplResult = Result<(), ErrorList>;
+
+
+
+macro_rules! check_stmt_cond {
+    ($stmt:expr) => ({
+        match $stmt.where_condition {
+            Some(ref cond) => check_cond(cond),
+            None => Ok(()),
+        }
+    })
+}
+
+
+pub fn check_stmt_unimpl(stmt : &Statement) -> UnimplResult {
+    match stmt {
+        &Statement::Select(ref select) => check_select(select),
+        &Statement::Delete(ref delete) => check_stmt_cond!(&delete),
+        &Statement::Update(ref update) => check_stmt_cond!(&update),
+        _ => Ok(())
+    }
+}
 
 
 pub fn check_select(select : &SelectStatement) -> UnimplResult {

@@ -3,6 +3,7 @@ use ::parser::common::Statement;
 use ::parser::compile_error::ErrorList;
 use ::parser::lexer::{TokenLine, TokenType};
 use ::parser::sem_check::check_sem;
+use ::parser::unimpl::check_stmt_unimpl;
 use ::store::tuple::TupleData;
 use ::store::table::{TableManagerRef, Table, TableSet, AttrType};
 use ::exec::gen_plan::{gen_table_set, gen_plan};
@@ -37,6 +38,9 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
     };
     let table_set = gen_table_set(&stmt, manager);
     if let Err(ref err_list) = check_sem(&mut stmt, &table_set) {
+        return result_handler.handle_error(handle_sql_err(err_list));
+    }
+    if let Err(ref err_list) = check_stmt_unimpl(&stmt) {
         return result_handler.handle_error(handle_sql_err(err_list));
     }
 
