@@ -1,11 +1,38 @@
 use super::sem_check::dummy_token;
 use super::common::ValueType;
+use super::attribute::AttributeExpr;
 use super::compile_error::{CompileError, CompileErrorType, ErrorList, ErrorRef};
 use super::condition::{ConditionExpr, ArithExpr, CmpOperantExpr};
+use super::select::{SelectStatement, SelectExpr, Relation};
 
 
 pub type UnimplResult = Result<(), ErrorList>;
 
+
+pub fn check_select(select : &SelectStatement) -> UnimplResult {
+    if select.groupby_having.is_some() {
+        return Err(gen_unimpl_error("group by and having not supported"));
+    }
+    if select.order_by_attr.is_some() {
+        return Err(gen_unimpl_error("order by not supported"));
+    }
+    if let SelectExpr::AttrList(ref attr_list) = select.select_expr {
+        for attr in attr_list.iter() {
+            if let &AttributeExpr::AggreFuncCall{..} = attr {
+                return Err(gen_unimpl_error("aggregate function not supported"));
+            }
+        }
+    }
+    for r in select.relation_list.iter() {
+        if let &Relation::Select(..) = r {
+            return Err(gen_unimpl_error("sub query not supported"));
+        }
+    }
+    if let Some(ref cond) = select.where_condition {
+        try!(check_cond(cond));
+    }
+    Ok(())
+}
 
 pub fn check_cond(condition : &ConditionExpr) -> UnimplResult {
     match condition {
@@ -57,9 +84,13 @@ pub fn check_arith_operant(arith : &ArithExpr) -> UnimplResult {
 }
 
 fn gen_null_error() -> ErrorList {
+    gen_unimpl_error("null not supported")
+}
+
+fn gen_unimpl_error(err_msg : &str) -> ErrorList {
     vec![ErrorRef::new(CompileError{
             error_type : CompileErrorType::SemUnimplemented,
             token : dummy_token(),
-            error_msg : "null not supported".to_string(),
+            error_msg : err_msg.to_string(),
         })]
 }
