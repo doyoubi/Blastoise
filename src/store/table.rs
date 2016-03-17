@@ -76,6 +76,14 @@ impl Table {
     pub fn get_attr_name_list(&self) -> Vec<String> {
         self.attr_list.iter().map(|a| a.name.clone()).collect()
     }
+    pub fn desc(&self) -> String {
+        let mut result = format!("table: {}\n", self.name);
+        for attr in self.attr_list.iter() {
+            result.push_str(&format!("{} {:?} {} {}\n", attr.name, attr.attr_type,
+                if attr.nullable {"null"}else{"not null"}, if attr.primary {"primary"}else{""}))
+        }
+        result
+    }
 }
 
 
@@ -232,6 +240,14 @@ impl TableManager {
     }
     pub fn insert(&mut self, table : &String, value_list : &ValueList) {
         self.file_manager.insert(table, value_list);
+    }
+    pub fn show_tables(&self) -> String {
+        let mut result = String::new();
+        for (_, t) in self.tables.iter() {
+            result.push_str(&t.borrow().desc());
+            result.push('\n');
+        }
+        result
     }
 }
 

@@ -7,7 +7,7 @@ use ::store::tuple::TupleData;
 use ::store::table::AttrType;
 use ::store::tuple::gen_tuple_value;
 use ::utils::config::Config;
-use super::handler::{sql_handler, ResultHandler};
+use super::handler::{sql_handler, ResultHandler, process_table_command};
 
 
 #[derive(Debug)]
@@ -30,10 +30,14 @@ impl LocalClient {
                     if line == "q" { break; }
                     sql.push_str(&line);
                     if let Some(';') = line.chars().rev().take(1).next() {
-                        println!("processing {:?}", sql);
                         sql.pop();  // remove ';'
-                        sql_handler(&sql, &mut process, &mut manager);
-                        process = Process::new();
+                        if let Ok(out) = process_table_command(&sql, &manager) {
+                            println!("{}", out);
+                        } else {
+                            println!("processing {:?}", sql);
+                            sql_handler(&sql, &mut process, &mut manager);
+                            process = Process::new();
+                        }
                         sql.clear();
                     }
                     line.clear();

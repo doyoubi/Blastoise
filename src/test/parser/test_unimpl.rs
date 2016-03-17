@@ -53,4 +53,8 @@ fn test_check_select() {
     let select = gen_parse_result!(SelectStatement::parse,
         "select * from msg where a is null");
     assert_pattern!(check_select(&select), Err(..));
+
+    let select = gen_parse_result!(SelectStatement::parse,
+        "select * from msg, book");
+    assert_pattern!(check_select(&select), Err(..));
 }

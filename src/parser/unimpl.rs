@@ -44,6 +44,9 @@ pub fn check_select(select : &SelectStatement) -> UnimplResult {
             }
         }
     }
+    if select.relation_list.len() > 1 {
+        return Err(gen_unimpl_error("select from multiple tables not supported"));
+    }
     for r in select.relation_list.iter() {
         if let &Relation::Select(..) = r {
             return Err(gen_unimpl_error("sub query not supported"));

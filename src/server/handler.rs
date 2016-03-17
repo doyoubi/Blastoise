@@ -30,17 +30,29 @@ fn gen_parse_result(input : &String) -> Result<Statement, ErrorList> {
 }
 
 
+pub fn process_table_command(input : &String, manager : &TableManagerRef) -> Result<String, ()> {
+    match input.as_ref() {
+        "show tables" => Ok(show_tables(manager)),
+        _ => Err(()),
+    }
+}
+
+fn show_tables(manager : &TableManagerRef) -> String {
+    manager.borrow().show_tables()
+}
+
+
 pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager : &TableManagerRef) {
     let parse_result = gen_parse_result(input);
     let mut stmt = match parse_result {
         Ok(stmt) => stmt,
         Err(ref err_list) => return result_handler.handle_error(handle_sql_err(err_list)),
     };
-    let table_set = gen_table_set(&stmt, manager);
-    if let Err(ref err_list) = check_sem(&mut stmt, &table_set) {
+    if let Err(ref err_list) = check_stmt_unimpl(&stmt) {
         return result_handler.handle_error(handle_sql_err(err_list));
     }
-    if let Err(ref err_list) = check_stmt_unimpl(&stmt) {
+    let table_set = gen_table_set(&stmt, manager);
+    if let Err(ref err_list) = check_sem(&mut stmt, &table_set) {
         return result_handler.handle_error(handle_sql_err(err_list));
     }
 
