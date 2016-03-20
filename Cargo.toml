@@ -7,3 +7,6 @@ authors = ["doyoubi <doyoubihgx@gmail.com>"]
 libc = "0.2.7"
 rustc-serialize = "0.3"
 toml = "0.1.27"
+mio = "0.5"
+bytes = "0.3"
+
