@@ -4,3 +4,5 @@ pub mod handler;
 pub mod local_client;
 #[allow(dead_code)]
 pub mod server;
+#[allow(dead_code)]
+pub mod queue;

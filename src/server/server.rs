@@ -1,21 +1,18 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::thread::{JoinHandle, spawn, sleep};
-use std::time::Duration;
-use std::collections::VecDeque;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::thread::{JoinHandle, spawn};
 use mio::*;
 use mio::tcp::{TcpListener, TcpStream};
 use mio::util::Slab;
 use bytes::{Buf, RingBuf};
-use ::utils::config::Config;
-use ::store::table::TableManager;
-use super::local_client::Process;
+// use ::utils::config::Config;
+// use ::store::table::TableManager;
+// use super::local_client::Process;
+use super::queue::{BlockingQueueRef, BlockingQueue};
 
 
 const SERVER : Token = Token(0);
-type TaskQueueRef = Arc<Mutex<VecDeque<(String, ConnRef)>>>;
+type TaskQueueRef = BlockingQueueRef<(String, ConnRef)>;
 
 struct SqlServer {
     listener : TcpListener,
@@ -26,10 +23,10 @@ struct SqlServer {
 
 impl SqlServer {
     fn new(listener : TcpListener) -> Self {
-        let q = Arc::new(Mutex::new(VecDeque::new()));
-        let clone = q.clone();
+        let q = BlockingQueueRef::new(BlockingQueue::new(64));
+        let q_clone = q.clone();
         let worker = spawn(|| {
-            consume_task_loop(clone);
+            consume_task_loop(q_clone);
         });
         SqlServer{
             listener : listener,
@@ -79,7 +76,7 @@ impl Handler for SqlServer {
                     match conn.get_state() {
                         State::Ready => {
                             let sql = conn.get_sql();
-                            self.req_que.lock().unwrap().push_back((sql, clone));
+                            self.req_que.push_back((sql, clone));
                         }
                         State::Closed => closed = true,
                         _ => (),
@@ -232,7 +229,9 @@ impl Connection {
         assert_eq!(self.state, State::Writing);
         println!("change to finished");
         self.state = State::Finished;
-        self.write_buf.write(b"\n");
+        // this will trigger a writable event then call try_transition_to_reading
+        // should not delete this!
+        check_ok!(self.write_buf.write(b"\n"));
     }
 
     fn try_transition_to_reading(&mut self, event_loop : &mut EventLoop<SqlServer>) {
@@ -257,22 +256,16 @@ enum State {
 }
 
 fn consume_task_loop(req_que : TaskQueueRef) {
-    let config = Config::from_cwd_config();
-    let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
-    let mut process = Process::new();
+    // let config = Config::from_cwd_config();
+    // let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
+    // let mut process = Process::new();
     loop {
-        match req_que.lock().unwrap().pop_front() {
-            Some((_sql, conn)) => {
-                let mut c = conn.lock().unwrap();
-                check_ok!(c.get_output_buf().write(b"ok!\n"));
-                assert_eq!(c.get_state(), State::Ready);
-                c.change_to_writing_in_loop();
-                c.change_to_finished_in_loop();
-            }
-            None => {
-                sleep(Duration::new(1, 0));
-            }
-        }
+        let (_sql, conn) = req_que.pop_front();
+        let mut c = conn.lock().unwrap();
+        check_ok!(c.get_output_buf().write(b"ok!\n"));
+        assert_eq!(c.get_state(), State::Ready);
+        c.change_to_writing_in_loop();
+        c.change_to_finished_in_loop();
     }
 }
 
