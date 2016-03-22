@@ -115,7 +115,7 @@ fn handle_sql_err(err_list : &ErrorList) -> String {
         let msg = match err.token.token_type {
             TokenType::UnKnown =>
                 format!("{:?}: {}", err.error_type, err.error_msg),
-            _ => format!("{:?} column{} `{}`: {}",
+            _ => format!("{:?} column {} `{}`: {}",
                 err.error_type, err.token.column, err.token.value, err.error_msg),
         };
         err_msg.push_str(&msg);

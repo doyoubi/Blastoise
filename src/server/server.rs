@@ -1,14 +1,20 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::thread::{JoinHandle, spawn};
 use mio::*;
 use mio::tcp::{TcpListener, TcpStream};
 use mio::util::Slab;
-use bytes::{Buf, RingBuf};
-// use ::utils::config::Config;
-// use ::store::table::TableManager;
-// use super::local_client::Process;
+use bytes::Buf;
+use ::utils::config::Config;
+use ::utils::pointer::to_cstring;
+use ::store::table::{TableManager, AttrType};
+use ::store::tuple::TupleData;
+use ::store::tuple::gen_tuple_value;
 use super::queue::{BlockingQueueRef, BlockingQueue};
+use super::handler::{sql_handler, ResultHandler, process_table_command};
+use super::buf::Buffer;
 
 
 const SERVER : Token = Token(0);
@@ -109,7 +115,7 @@ pub struct Connection {
     sender : Sender<(Token, State)>,
     state : State,
     read_buf : Vec<u8>,
-    write_buf : RingBuf,
+    write_buf : Buffer,
 }
 
 impl Connection {
@@ -120,13 +126,13 @@ impl Connection {
             sender : sender,
             state : State::Reading,
             read_buf : Vec::new(),
-            write_buf : RingBuf::new(64),
+            write_buf : Buffer::new(64),
         }
     }
 }
 
 impl Connection {
-    fn get_output_buf(&mut self) -> &mut RingBuf {
+    fn get_output_buf(&mut self) -> &mut Buffer {
         &mut self.write_buf
     }
 
@@ -140,7 +146,10 @@ impl Connection {
 
     fn get_sql(&self) -> String {
         assert_eq!(self.get_state(), State::Ready);
-        let end = self.read_buf.iter().position(|b| *b == b'\n').unwrap();
+        let end = match self.read_buf.iter().position(|b| *b == b'\r') {
+            Some(i) => i,
+            None => self.read_buf.iter().position(|b| *b == b'\n').unwrap(),
+        };
         String::from_utf8(Vec::from(&self.read_buf[..end])).unwrap()
     }
 
@@ -200,7 +209,7 @@ impl Connection {
         assert_eq!(self.state, State::Reading);
         if let Some(..) = self.read_buf.iter().position(|b| *b == b'\n') {
             println!("change to ready");
-            self.write_buf.clear();
+            self.write_buf.reset();
             self.state = State::Ready;
             check_ok!(
                 event_loop.deregister(self.get_socket())
@@ -256,16 +265,64 @@ enum State {
 }
 
 fn consume_task_loop(req_que : TaskQueueRef) {
-    // let config = Config::from_cwd_config();
-    // let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
-    // let mut process = Process::new();
+    let config = Config::from_cwd_config();
+    let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
     loop {
-        let (_sql, conn) = req_que.pop_front();
-        let mut c = conn.lock().unwrap();
-        check_ok!(c.get_output_buf().write(b"ok!\n"));
-        assert_eq!(c.get_state(), State::Ready);
-        c.change_to_writing_in_loop();
-        c.change_to_finished_in_loop();
+        let (sql, conn) = req_que.pop_front();
+        {
+            let c = conn.lock().unwrap();
+            assert_eq!(c.get_state(), State::Ready);
+            c.change_to_writing_in_loop();
+        }
+        if let Ok(out) = process_table_command(&sql, &manager) {
+            let mut c = conn.lock().unwrap();
+            check_ok!(c.get_output_buf().write(to_cstring(out).as_bytes()));
+            c.change_to_finished_in_loop();
+        } else {
+            println!("processing {:?}", sql);
+            let mut process = Process::new(conn);
+            sql_handler(&sql, &mut process, &mut manager);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Process {
+    attr_desc : Vec<AttrType>,
+    attr_index : Vec<usize>,
+    conn : ConnRef,
+}
+
+impl Process {
+    pub fn new(conn : ConnRef) -> Process {
+        Process{
+            attr_desc : Vec::new(),
+            attr_index : Vec::new(),
+            conn : conn,
+        }
+    }
+}
+
+impl ResultHandler for Process {
+    fn handle_error(&mut self, err_msg : String) {
+        let cstring = to_cstring(err_msg);
+        let mut c = self.conn.lock().unwrap();
+        check_ok!(c.get_output_buf().write(cstring.as_bytes()));
+        c.change_to_finished_in_loop()
+    }
+    fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>) {
+        match tuple_data {
+            Some(data) => {
+                let value = gen_tuple_value(&self.attr_desc, data);
+                let cstring = to_cstring(format!("{:?}", value));
+                check_ok!(self.conn.lock().unwrap().get_output_buf().write(cstring.as_bytes()));
+            }
+            None => self.conn.lock().unwrap().change_to_finished_in_loop(),
+        }
+    }
+    fn set_tuple_info(&mut self, attr_desc : Vec<AttrType>, attr_index : Vec<usize>) {
+        self.attr_desc = attr_desc;
+        self.attr_index = attr_index;
     }
 }
 

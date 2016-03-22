@@ -6,3 +6,5 @@ pub mod local_client;
 pub mod server;
 #[allow(dead_code)]
 pub mod queue;
+#[allow(dead_code)]
+pub mod buf;

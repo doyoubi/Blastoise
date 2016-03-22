@@ -49,7 +49,7 @@ impl LocalClient {
 }
 
 #[derive(Debug)]
-pub struct Process {
+struct Process {
     attr_desc : Vec<AttrType>,
     attr_index : Vec<usize>,
 }
