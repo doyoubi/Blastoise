@@ -94,6 +94,7 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
             if let Some(ref err) = plan.get_error() {
                 result_handler.handle_error(handle_exec_err(err));
             } else {
+                result_handler.handle_tuple_data(None);
                 manager.borrow_mut().save_to_file();
             }
         }
