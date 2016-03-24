@@ -1,17 +1,20 @@
-use std::io::Write;
+use std::io::{Write, ErrorKind};
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::thread::{JoinHandle, spawn};
+use std::mem::transmute;
+use std::ptr::read;
+use std::slice;
 use mio::*;
 use mio::tcp::{TcpListener, TcpStream};
 use mio::util::Slab;
 use bytes::Buf;
+use rustc_serialize::json::encode;
 use ::utils::config::Config;
 use ::utils::pointer::to_cstring;
 use ::store::table::{TableManager, AttrType};
 use ::store::tuple::TupleData;
-use ::store::tuple::gen_tuple_value;
 use super::queue::{BlockingQueueRef, BlockingQueue};
 use super::handler::{sql_handler, ResultHandler, process_table_command};
 use super::buf::Buffer;
@@ -185,7 +188,13 @@ impl Connection {
                 println!("nothing read");
             }
             Err(e) => {
-                panic!("got an error trying to read; err={:?}", e);
+                match e.kind() {
+                    ErrorKind::ConnectionReset => {
+                        println!("{:?}", e);
+                        self.state = State::Closed;
+                    },
+                    _ => panic!("got an error trying to read; err={:?}", e),
+                }
             }
         }
     }
@@ -313,14 +322,34 @@ impl ResultHandler for Process {
     fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>) {
         match tuple_data {
             Some(data) => {
-                let value = gen_tuple_value(&self.attr_desc, data);
-                let cstring = to_cstring(format!("{:?}", value));
-                check_ok!(self.conn.lock().unwrap().get_output_buf().write(cstring.as_bytes()));
+                assert_eq!(self.attr_desc.len(), data.len());
+                let mut c = self.conn.lock().unwrap();
+                for (attr, p) in self.attr_desc.iter().zip(data.iter()) {
+                    match attr {
+                        &AttrType::Int | &AttrType::Float => {
+                            let bytes = unsafe{read::<[u8; 4]>(*p as *const [u8; 4])};
+                            check_ok!(c.get_output_buf().write(&bytes));
+                        }
+                        &AttrType::Char{len} => {
+                            let bytes : &[u8] = unsafe{ slice::from_raw_parts(*p as *const u8, len) };
+                            check_ok!(c.get_output_buf().write(bytes));
+                        }
+                    };
+                }
             }
             None => self.conn.lock().unwrap().change_to_finished_in_loop(),
         }
     }
     fn set_tuple_info(&mut self, attr_desc : Vec<AttrType>, attr_index : Vec<usize>) {
+        let json_header = encode(&attr_desc).unwrap();
+        let json_len = json_header.len() as u32;
+        let cstring = to_cstring(json_header);
+        let len_bytes : [u8; 4] = unsafe { transmute(json_len.to_le()) };
+        {
+            let mut c = self.conn.lock().unwrap();
+            check_ok!(c.get_output_buf().write(&len_bytes));
+            check_ok!(c.get_output_buf().write(cstring.as_bytes()));
+        }
         self.attr_desc = attr_desc;
         self.attr_index = attr_index;
     }
