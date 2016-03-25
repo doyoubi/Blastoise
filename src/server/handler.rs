@@ -17,6 +17,7 @@ pub type ResultHandlerRef = Box<ResultHandler>;
 pub trait ResultHandler {
     fn handle_error(&mut self, err_msg : String);
     fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>);
+    fn handle_non_query_finished(&mut self);
     fn set_tuple_info(&mut self, attr_desc : Vec<AttrType>, attr_index : Vec<usize>);
 }
 
@@ -94,7 +95,7 @@ pub fn sql_handler(input : &String, result_handler : &mut ResultHandler, manager
             if let Some(ref err) = plan.get_error() {
                 result_handler.handle_error(handle_exec_err(err));
             } else {
-                result_handler.handle_tuple_data(None);
+                result_handler.handle_non_query_finished();
                 manager.borrow_mut().save_to_file();
             }
         }

@@ -249,7 +249,7 @@ impl Connection {
         self.state = State::Finished;
         // this will trigger a writable event then call try_transition_to_reading
         // should not delete this!
-        check_ok!(self.write_buf.write(b"\n"));
+        check_ok!(self.write_buf.write(b"\r\n"));
     }
 
     fn try_transition_to_reading(&mut self, event_loop : &mut EventLoop<SqlServer>) {
@@ -300,6 +300,7 @@ struct Process {
     attr_desc : Vec<AttrType>,
     attr_index : Vec<usize>,
     conn : ConnRef,
+    header_sended : bool,
 }
 
 impl Process {
@@ -308,18 +309,43 @@ impl Process {
             attr_desc : Vec::new(),
             attr_index : Vec::new(),
             conn : conn,
+            header_sended : false,
         }
+    }
+    fn send_header(&mut self) {
+        assert!(!self.header_sended);
+        let json_header = encode(&self.attr_desc).unwrap();
+        let json_len = json_header.len() as u32;
+        let cstring = to_cstring(json_header);
+        let len_bytes : [u8; 4] = unsafe { transmute(json_len.to_le()) };
+        {
+            let mut c = self.conn.lock().unwrap();
+            check_ok!(c.get_output_buf().write(&len_bytes));
+            check_ok!(c.get_output_buf().write(cstring.as_bytes()));
+        }
+        self.header_sended = true;
     }
 }
 
 impl ResultHandler for Process {
+    fn handle_non_query_finished(&mut self) {
+        let non_query_header_tag : [u8; 4] = [0, 0, 0, 0];
+        let mut c = self.conn.lock().unwrap();
+        check_ok!(c.get_output_buf().write(&non_query_header_tag));
+        c.change_to_finished_in_loop();
+    }
     fn handle_error(&mut self, err_msg : String) {
         let cstring = to_cstring(err_msg);
+        let error_header_tag : [u8; 4] = [0, 0, 0, 0];
         let mut c = self.conn.lock().unwrap();
+        check_ok!(c.get_output_buf().write(&error_header_tag));
         check_ok!(c.get_output_buf().write(cstring.as_bytes()));
-        c.change_to_finished_in_loop()
+        c.change_to_finished_in_loop();
     }
     fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>) {
+        if !self.header_sended {
+            self.send_header();
+        }
         match tuple_data {
             Some(data) => {
                 assert_eq!(self.attr_desc.len(), data.len());
@@ -341,15 +367,6 @@ impl ResultHandler for Process {
         }
     }
     fn set_tuple_info(&mut self, attr_desc : Vec<AttrType>, attr_index : Vec<usize>) {
-        let json_header = encode(&attr_desc).unwrap();
-        let json_len = json_header.len() as u32;
-        let cstring = to_cstring(json_header);
-        let len_bytes : [u8; 4] = unsafe { transmute(json_len.to_le()) };
-        {
-            let mut c = self.conn.lock().unwrap();
-            check_ok!(c.get_output_buf().write(&len_bytes));
-            check_ok!(c.get_output_buf().write(cstring.as_bytes()));
-        }
         self.attr_desc = attr_desc;
         self.attr_index = attr_index;
     }

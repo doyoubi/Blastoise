@@ -27,6 +27,7 @@ impl ResultHandler for MockHandler {
         }
     }
     fn set_tuple_info(&mut self, _attr_desc : Vec<AttrType>, _attr_index : Vec<usize>) {}
+    fn handle_non_query_finished(&mut self) {}
 }
 
 

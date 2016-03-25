@@ -80,4 +80,7 @@ impl ResultHandler for Process {
         self.attr_desc = attr_desc;
         self.attr_index = attr_index;
     }
+    fn handle_non_query_finished(&mut self) {
+        print!("end");
+    }
 }
