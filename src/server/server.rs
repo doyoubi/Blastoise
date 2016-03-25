@@ -373,7 +373,9 @@ impl ResultHandler for Process {
 }
 
 pub fn run_server() {
-    let addr = "127.0.0.1:8080".parse().unwrap();
+    let config = Config::from_cwd_config();
+    let port = config.get_int("port");
+    let addr = format!("0.0.0.0:{}", port).parse().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
     let mut event_loop = EventLoop::new().unwrap();
 

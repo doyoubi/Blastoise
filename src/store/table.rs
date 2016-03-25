@@ -167,7 +167,7 @@ impl TableManager {
     pub fn save_to_file(&mut self) {
         self.file_manager.save_all();
         let full_path = path_join(&self.table_meta_dir, &"table_meta.json".to_string());
-        let mut file = OpenOptions::new().read(true).write(true).create(true).open(
+        let mut file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(
             &full_path).unwrap();
         let json_str = self.to_json();
         is_match!(file.write_all(json_str.as_bytes()), Ok(..));
