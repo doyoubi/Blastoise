@@ -48,7 +48,7 @@ impl SqlServer {
 
 impl Handler for SqlServer {
     type Timeout = ();
-    type Message = (Token, State);
+    type Message = SenderMsg;
 
     fn ready(&mut self, event_loop : &mut EventLoop<SqlServer>, token : Token, events : EventSet) {
         match token {
@@ -63,11 +63,7 @@ impl Handler for SqlServer {
                                 socket, token, event_loop.channel()
                                 ))))
                             .unwrap();
-                        event_loop.register(
-                            self.conn_list[token].lock().unwrap().get_socket(),
-                            token,
-                            EventSet::readable(),
-                            PollOpt::level()).unwrap();
+                        self.conn_list[token].lock().unwrap().init_reading_state(event_loop);
                     }
                     Ok(None) => { println!("the server socket wasn't actually ready"); },
                     Err(e) => {
@@ -98,31 +94,33 @@ impl Handler for SqlServer {
         }
     }
 
-    fn notify(&mut self, event_loop: &mut EventLoop<SqlServer>, msg: (Token, State)) {
-        let (token, state) = msg;
+    fn notify(&mut self, event_loop: &mut EventLoop<SqlServer>, msg: SenderMsg) {
+        let (token, curr_state, req_state) = msg;
         let mut conn = self.conn_list[token].lock().unwrap();
-        match state {
-            State::Writing => conn.transition_to_writing(event_loop),
-            State::Finished => conn.transition_to_finished(),
-            _ => panic!("invalid state {:?}", state),
+        match (curr_state, req_state) {
+            (State::Writing, State::Writing) => conn.ensure_write_registered(event_loop),
+            (State::Writing, State::Finished) => conn.transition_to_finished(event_loop),
+            other => panic!("invalid request {:?}", other),
         }
     }
 }
 
 type ConnRef = Arc<Mutex<Connection>>;
+type SenderMsg = (Token, State, State);
 
 #[derive(Debug)]
 pub struct Connection {
     socket : TcpStream,
     token : Token,
-    sender : Sender<(Token, State)>,
+    sender : Sender<SenderMsg>,
     state : State,
     read_buf : Vec<u8>,
     write_buf : Buffer,
+    event_added : bool,
 }
 
 impl Connection {
-    fn new(socket: TcpStream, token: Token, sender : Sender<(Token, State)>) -> Connection {
+    fn new(socket: TcpStream, token: Token, sender : Sender<SenderMsg>) -> Connection {
         Connection {
             socket : socket,
             token : token,
@@ -130,13 +128,15 @@ impl Connection {
             state : State::Reading,
             read_buf : Vec::new(),
             write_buf : Buffer::new(64),
+            event_added : false,
         }
     }
 }
 
 impl Connection {
-    fn get_output_buf(&mut self) -> &mut Buffer {
-        &mut self.write_buf
+    fn write_buffer(&mut self, data : &[u8]) {
+        check_ok!(self.write_buf.write(data));
+        self.ensure_write_registered_in_loop();
     }
 
     fn get_state(&self) -> State {
@@ -157,7 +157,7 @@ impl Connection {
     }
 
     fn dispatch(&mut self, event_loop: &mut EventLoop<SqlServer>, events: EventSet) {
-        println!("    connection-state={:?}", self.state);
+        println!("connection state: {:?}", self.state);
 
         match self.state {
             State::Reading => {
@@ -203,6 +203,9 @@ impl Connection {
         match self.socket.try_write_buf(&mut self.write_buf) {
             Ok(Some(n)) => {
                 println!("write {:?} bytes", n);
+                if !self.write_buf.has_remaining() {
+                    self.deregister_all(event_loop);
+                }
                 self.try_transition_to_reading(event_loop);
             }
             Ok(None) => {
@@ -214,42 +217,47 @@ impl Connection {
         }
     }
 
+    fn init_reading_state(&mut self, event_loop: &mut EventLoop<SqlServer>) {
+        self.state = State::Reading;
+        self.register_read(event_loop);
+    }
+
     fn try_transition_to_ready(&mut self, event_loop: &mut EventLoop<SqlServer>) {
         assert_eq!(self.state, State::Reading);
         if let Some(..) = self.read_buf.iter().position(|b| *b == b'\n') {
             println!("change to ready");
             self.write_buf.reset();
             self.state = State::Ready;
-            check_ok!(
-                event_loop.deregister(self.get_socket())
-            );
+            self.deregister_all(event_loop);
         }
     }
 
-    fn change_to_writing_in_loop(&self) {
-        check_ok!(self.sender.send((self.token, State::Writing)));
-    }
-
     fn change_to_finished_in_loop(&self) {
-        check_ok!(self.sender.send((self.token, State::Finished)));
+        assert_eq!(self.state, State::Writing);
+        check_ok!(self.sender.send((self.token, State::Writing, State::Finished)));
     }
 
-    fn transition_to_writing(&mut self, event_loop : &mut EventLoop<SqlServer>) {
+    fn register_write_in_loop(&self) {
+        assert_eq!(self.state, State::Writing);
+        check_ok!(self.sender.send((self.token, State::Writing, State::Writing)));
+    }
+
+    fn transition_to_writing(&mut self) {
         assert_eq!(self.state, State::Ready);
         println!("change to writing");
         self.state = State::Writing;
-        check_ok!(
-            event_loop.register(self.get_socket(), self.token, EventSet::writable(), PollOpt::level())
-            );
     }
 
-    fn transition_to_finished(&mut self) {
+    fn transition_to_finished(&mut self, event_loop : &mut EventLoop<SqlServer>) {
         assert_eq!(self.state, State::Writing);
         println!("change to finished");
         self.state = State::Finished;
         // this will trigger a writable event then call try_transition_to_reading
         // should not delete this!
         check_ok!(self.write_buf.write(b"\r\n"));
+        if !self.event_added {
+            self.register_write(event_loop);
+        }
     }
 
     fn try_transition_to_reading(&mut self, event_loop : &mut EventLoop<SqlServer>) {
@@ -257,10 +265,44 @@ impl Connection {
             println!("change to reading");
             self.read_buf.clear();
             self.state = State::Reading;
-            check_ok!(
-                event_loop.reregister(self.get_socket(), self.token, EventSet::readable(), PollOpt::level())
-                );
+            self.register_read(event_loop);
         }
+    }
+
+    fn ensure_write_registered_in_loop(&mut self) {
+        if !self.event_added {
+            self.register_write_in_loop();
+        }
+    }
+
+    fn ensure_write_registered(&mut self, event_loop : &mut EventLoop<SqlServer>) {
+        if !self.event_added {
+            self.register_write(event_loop);
+        }
+    }
+
+    fn register_read(&mut self, event_loop : &mut EventLoop<SqlServer>) {
+        assert!(!self.event_added);
+        check_ok!(
+            event_loop.register(self.get_socket(), self.token, EventSet::readable(), PollOpt::level())
+        );
+        self.event_added = true;
+    }
+
+    fn register_write(&mut self, event_loop : &mut EventLoop<SqlServer>) {
+        assert!(!self.event_added);
+        check_ok!(
+            event_loop.register(self.get_socket(), self.token, EventSet::writable(), PollOpt::level())
+        );
+        self.event_added = true;
+    }
+
+    fn deregister_all(&mut self, event_loop : &mut EventLoop<SqlServer>) {
+        assert!(self.event_added);
+        check_ok!(
+            event_loop.deregister(self.get_socket())
+        );
+        self.event_added = false;
     }
 }
 
@@ -278,14 +320,10 @@ fn consume_task_loop(req_que : TaskQueueRef) {
     let mut manager = Rc::new(RefCell::new(TableManager::from_json_file(&config)));
     loop {
         let (sql, conn) = req_que.pop_front();
-        {
-            let c = conn.lock().unwrap();
-            assert_eq!(c.get_state(), State::Ready);
-            c.change_to_writing_in_loop();
-        }
+        conn.lock().unwrap().transition_to_writing();
         if let Ok(out) = process_table_command(&sql, &manager) {
             let mut c = conn.lock().unwrap();
-            check_ok!(c.get_output_buf().write(to_cstring(out).as_bytes()));
+            c.write_buffer(to_cstring(out).as_bytes());
             c.change_to_finished_in_loop();
         } else {
             println!("processing {:?}", sql);
@@ -320,8 +358,8 @@ impl Process {
         let len_bytes : [u8; 4] = unsafe { transmute(json_len.to_le()) };
         {
             let mut c = self.conn.lock().unwrap();
-            check_ok!(c.get_output_buf().write(&len_bytes));
-            check_ok!(c.get_output_buf().write(cstring.as_bytes()));
+            c.write_buffer(&len_bytes);
+            c.write_buffer(cstring.as_bytes());
         }
         self.header_sended = true;
     }
@@ -331,15 +369,15 @@ impl ResultHandler for Process {
     fn handle_non_query_finished(&mut self) {
         let non_query_header_tag : [u8; 4] = [0, 0, 0, 0];
         let mut c = self.conn.lock().unwrap();
-        check_ok!(c.get_output_buf().write(&non_query_header_tag));
+        c.write_buffer(&non_query_header_tag);
         c.change_to_finished_in_loop();
     }
     fn handle_error(&mut self, err_msg : String) {
         let cstring = to_cstring(err_msg);
         let error_header_tag : [u8; 4] = [0, 0, 0, 0];
         let mut c = self.conn.lock().unwrap();
-        check_ok!(c.get_output_buf().write(&error_header_tag));
-        check_ok!(c.get_output_buf().write(cstring.as_bytes()));
+        c.write_buffer(&error_header_tag);
+        c.write_buffer(cstring.as_bytes());
         c.change_to_finished_in_loop();
     }
     fn handle_tuple_data(&mut self, tuple_data : Option<TupleData>) {
@@ -354,11 +392,11 @@ impl ResultHandler for Process {
                     match attr {
                         &AttrType::Int | &AttrType::Float => {
                             let bytes = unsafe{read::<[u8; 4]>(*p as *const [u8; 4])};
-                            check_ok!(c.get_output_buf().write(&bytes));
+                            c.write_buffer(&bytes);
                         }
                         &AttrType::Char{len} => {
                             let bytes : &[u8] = unsafe{ slice::from_raw_parts(*p as *const u8, len) };
-                            check_ok!(c.get_output_buf().write(bytes));
+                            c.write_buffer(bytes);
                         }
                     };
                 }
