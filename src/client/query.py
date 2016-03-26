@@ -44,12 +44,12 @@ def attr_len(attr):
 def get_value(attr_type, data, index):
     if attr_type['type'] == 'Int':
         return struct.unpack('<I', data[index:index+4])[0]
-    elif attr_type['type'] == 'Int':
+    elif attr_type['type'] == 'Float':
         return struct.unpack('<f', data[index:index+4])[0]
     elif attr_type['type'] == 'Char':
         str_len = int(attr_type['len'])
         return struct.unpack('%ds' % str_len, data[index:index+str_len])[0].rstrip('\0')
-    raise Exception('invalid type')
+    raise Exception('invalid type %s' % attr_type['type'])
 
 
 def get_gap(attr_type):
@@ -57,7 +57,7 @@ def get_gap(attr_type):
         return 4
     elif attr_type['type'] == 'Char':
         return int(attr_type['len'])
-    raise Exception('invalid type')
+    raise Exception('invalid type %s' % attr_type['type'])
 
 
 def print_tuple_desc(tuple_desc):
