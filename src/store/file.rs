@@ -483,7 +483,8 @@ impl TableFileManager {
             assert!(first_free_page <= page_sum);
             if first_free_page == page_sum { break; }
             self.ensure_page_loaded(&file, first_free_page);
-            if file.borrow().loaded_pages.get(&first_free_page).unwrap().is_full() {
+            let is_full = file.borrow().loaded_pages.get(&first_free_page).unwrap().is_full();  // fight borrow checker
+            if is_full {
                 file.borrow_mut().first_free_page += 1;
             } else {
                 return false;
