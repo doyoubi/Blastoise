@@ -88,6 +88,7 @@ impl Handler for SqlServer {
                     }
                 }
                 if closed {
+                    self.conn_list[token].lock().unwrap().deregister_all(event_loop);
                     is_match!(self.conn_list.remove(token), Some(..));
                 }
             }
