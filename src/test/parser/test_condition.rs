@@ -290,4 +290,14 @@ fn test_complex_cond_expr() {
         assert_eq!(exp.to_string(), "((dept.number) > Integer(1))");
         assert_pattern!(it.next(), None);
     }
+    {
+        let tokens = gen_token!("(MATH_SCORE + ENGLISH_SCORE) / 2 >= 80");
+        assert_eq!(tokens.len(), 9);
+        let mut it = tokens.iter();
+        let exp = ConditionExpr::parse(&mut it);
+        assert_pattern!(exp, Ok(..));
+        let exp = exp.unwrap();
+        assert_eq!(exp.to_string(), "(((MATH_SCORE + ENGLISH_SCORE) / Integer(2)) >= Integer(80))");
+        assert_pattern!(it.next(), None);
+    }
 }

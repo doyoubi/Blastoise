@@ -12,6 +12,7 @@ use super::common::{
     consume_next_token,
     consume_next_token_with_type,
     consume_next_token_with_type_list,
+    concat_error_list,
 };
 
 
@@ -218,10 +219,21 @@ impl ConditionExpr {
                 Ok(ConditionExpr::NotExpr { operant : CondRef::new(try!(ConditionExpr::parse(it))) })
             }
             TokenType::OpenBracket => {
+                let tmp = it.clone();
                 it.next();
-                let cond_exp = try!(ConditionExpr::parse(it));
-                try!(consume_next_token_with_type(it, TokenType::CloseBracket));
-                Ok(cond_exp)
+                match ConditionExpr::parse(it) {
+                    Ok(cond_exp) => {
+                        try!(consume_next_token_with_type(it, TokenType::CloseBracket));
+                        Ok(cond_exp)
+                    }
+                    Err(e1) => {
+                        *it = tmp;
+                        match ConditionExpr::parse_cmp(it) {
+                            Ok(expr) => Ok(expr),
+                            Err(e2) => Err(concat_error_list(vec![e1, e2])),
+                        }
+                    }
+                }
             }
             _ => Ok(try!(ConditionExpr::parse_cmp(it))),
         }
