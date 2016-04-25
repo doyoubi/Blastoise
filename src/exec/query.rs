@@ -95,8 +95,13 @@ impl ExecIter for FileScan {
         }
         let file = self.file.clone();
         let slot_sum = file.borrow().get_page_slot_sum();
-        let mut page_index = self.curr_position / slot_sum;
-        let mut tuple_index = self.curr_position % slot_sum;
+        let shift_index = if self.curr_position == 0 {
+            self.curr_position
+        } else {
+            self.curr_position - 1
+        };  // to stay in the same page as the last get_next()
+        let mut page_index = shift_index / slot_sum;
+        let mut tuple_index = self.curr_position - slot_sum * page_index;
         let index = self.find_page_helper(&mut page_index, &mut tuple_index);
         let result = match index {
             Some(position) => Some((
