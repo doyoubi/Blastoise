@@ -176,7 +176,7 @@ impl TableManager {
         let table_meta_dir = config.get_str("table_meta_dir");
         ensure_dir_exist(&table_meta_dir);
         let full_path = path_join(&table_meta_dir, &"table_meta.json".to_string());
-        let mut file = OpenOptions::new().read(true).create(true).open(
+        let mut file = OpenOptions::new().read(true).write(true).create(true).open(
             &full_path).unwrap();
         let mut json_str = String::new();
         assert!(file.read_to_string(&mut json_str).is_ok());
